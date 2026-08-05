@@ -19,7 +19,7 @@ class PilotProfileForm(forms.ModelForm):
             "first_name",
             "last_name",
             "business_name",
-            "logo",
+            "company_logo",
             "email",
             "street_address",
             "city",
@@ -66,7 +66,7 @@ class PilotProfileForm(forms.ModelForm):
         for field in self.fields.values():
             field.widget.attrs["class"] = "form-control"
 
-        self.fields["logo"].widget.attrs.update({
+        self.fields["company_logo"].widget.attrs.update({
             "accept": "image/jpeg,image/png,image/webp",
             "class": "form-control",
         })

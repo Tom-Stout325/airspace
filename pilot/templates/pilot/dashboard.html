@@ -7,7 +7,7 @@
     <a href="{% url 'pilot:profile_edit' %}" class="btn btn-warning">{% if profile %}Edit profile{% else %}Create profile{% endif %}</a>
   </div>
   <div class="row g-4">
-    <div class="col-12 col-lg-8"><div class="card shadow-sm h-100"><div class="card-header bg-white"><h2 class="h5 mb-0">Current information</h2></div><div class="card-body">{% if profile.logo %}<div class="text-center text-md-start mb-4"><img src="{% url 'pilot:logo_download' %}" alt="{{ profile.business_name|default:request.user.get_full_name }} logo" class="img-fluid" style="max-width: 260px; max-height: 150px; object-fit: contain;"></div>{% endif %}<dl class="row mb-0">
+    <div class="col-12 col-lg-8"><div class="card shadow-sm h-100"><div class="card-header bg-white"><h2 class="h5 mb-0">Current information</h2></div><div class="card-body">{% if profile.company_logo %}<div class="text-center text-md-start mb-4"><img src="{% url 'pilot:company_logo_download' %}" alt="{{ profile.business_name|default:request.user.get_full_name }} company_logo" class="img-fluid" style="max-width: 260px; max-height: 150px; object-fit: contain;"></div>{% endif %}<dl class="row mb-0">
       <dt class="col-sm-4">Name</dt><dd class="col-sm-8">{{ request.user.get_full_name|default:"Not provided" }}</dd>
       <dt class="col-sm-4">Business</dt><dd class="col-sm-8">{{ profile.business_name|default:"Not provided" }}</dd>
       <dt class="col-sm-4">Email</dt><dd class="col-sm-8">{{ request.user.email }}</dd>

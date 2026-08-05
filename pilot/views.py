@@ -29,22 +29,6 @@ def dashboard(request):
         for value in required_values
     )
 
-    print("========== PROFILE DEBUG ==========")
-    for name, value in {
-        "first_name": request.user.first_name,
-        "last_name": request.user.last_name,
-        "email": request.user.email,
-        "phone": getattr(profile, "phone", ""),
-        "street_address": getattr(profile, "street_address", ""),
-        "city": getattr(profile, "city", ""),
-        "state": getattr(profile, "state", ""),
-        "zip_code": getattr(profile, "zip_code", ""),
-        "faa_certificate_number": getattr(profile, "faa_certificate_number", ""),
-    }.items():
-        print(f"{name:20} = {repr(value)}")
-    print("===================================")
-
-
     completion_percent = round(
         completed_fields / len(required_values) * 100
     )
@@ -127,14 +111,14 @@ def profile_delete(request):
     )
 
 @login_required
-def logo_download(request):
+def company_logo_download(request):
     profile = PilotProfile.objects.filter(user=request.user).first()
-    if not profile or not profile.logo:
+    if not profile or not profile.company_logo:
         raise Http404("Logo not found.")
 
     try:
-        logo_file = profile.logo.open("rb")
+        company_logo_file = profile.company_logo.open("rb")
     except (FileNotFoundError, OSError):
         raise Http404("Logo not found.")
 
-    return FileResponse(logo_file)
+    return FileResponse(company_logo_file)

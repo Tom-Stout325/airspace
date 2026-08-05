@@ -62,7 +62,7 @@ def invitation_accept(request, token):
         else:
             login(request, user)
             messages.success(request, 'Your AirSpace account has been created. Complete your pilot profile to continue.')
-            return redirect('accounts:pilot_profile_onboarding')
+            return redirect("pilot:profile_edit")
 
     return render(request, 'accounts/invitations/accept.html', {'form': form, 'invitation': invitation})
 

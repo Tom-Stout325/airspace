@@ -813,7 +813,7 @@ def conops_pdf_export(request, application_id):
         "request_user": request.user,
         "pilot_profile": pilot_profile,
         "pilot_logo_data_uri": image_field_to_data_uri(
-            pilot_profile.logo if pilot_profile else None
+            pilot_profile.company_logo if pilot_profile else None
         ),
     }
 

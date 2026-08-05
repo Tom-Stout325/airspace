@@ -6,5 +6,5 @@ urlpatterns = [
     path("", views.dashboard, name="dashboard"),
     path("profile/edit/", views.profile_edit, name="profile_edit"),
     path("profile/delete/", views.profile_delete, name="profile_delete"),
-    path("profile/logo/", views.logo_download, name="logo_download"),
+    path("company-logo/", views.company_logo_download, name="company_logo_download",)
 ]

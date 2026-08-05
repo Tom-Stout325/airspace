@@ -28,14 +28,18 @@ class PilotProfileTests(TestCase):
 
         PilotProfile.objects.create(
             user=self.user,
-            logo=SimpleUploadedFile("logo.png", b"test-logo", content_type="image/png"),
+            company_logo=SimpleUploadedFile(
+                "company_logo.png",
+                b"test-company_logo",
+                content_type="image/png",
+            ),
         )
 
-        response = self.client.get(reverse("pilot:logo_download"))
+        response = self.client.get(reverse("pilot:company_logo_download"))
         self.assertEqual(response.status_code, 200)
 
         self.client.force_login(self.other_user)
-        response = self.client.get(reverse("pilot:logo_download"))
+        response = self.client.get(reverse("pilot:company_logo_download"))
         self.assertEqual(response.status_code, 404)
 
     def test_profile_delete_does_not_delete_login_account(self):
