@@ -68,7 +68,7 @@ class InvitationFlowTests(TestCase):
             "password2": "Strong-test-password-123",
         })
         user = User.objects.get(email=invitation.email)
-        self.assertRedirects(response, reverse("accounts:pilot_profile_onboarding"))
+        self.assertRedirects(response, reverse("pilot:profile_edit"),)
         self.assertTrue(PilotProfile.objects.filter(user=user).exists())
         invitation.refresh_from_db()
         self.assertEqual(invitation.status, Invitation.Status.ACCEPTED)

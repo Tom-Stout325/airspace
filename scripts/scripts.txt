@@ -14,9 +14,6 @@ cp -R _AirSpace _AirSpace_backup
 cd into the root folder
 
 
-unzip ~/Downloads/AirSpace_pilot_dashboard_patch.zip
+unzip ~/Downloads/AirSpace_pilot_logo_patch.zip
 
-
-git apply --check AirSpace_pilot_dashboard_patch/AirSpace-pilot-dashboard-crud.patch
-
-git apply AirSpace-pilot-dashboard-crud.patch
+git apply --check AirSpace_pilot_logo_patch/AirSpace-pilot-logo.patch

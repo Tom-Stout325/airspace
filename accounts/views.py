@@ -37,7 +37,7 @@ def _get_invitation(token):
 
 def invitation_accept(request, token):
     if request.user.is_authenticated:
-        return redirect("accounts:pilot_profile_onboarding")
+        return redirect("pilot:profile_edit")
 
     invitation = _get_invitation(token)
     state = invitation.display_status

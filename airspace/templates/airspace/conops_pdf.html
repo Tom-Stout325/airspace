@@ -139,7 +139,11 @@
 
 
     <div class="cover-top">
-      <img src="{% static 'images/logo2.png' %}" class="logo" alt="{{ BRAND.name }} Logo">
+      {% if pilot_logo_data_uri %}
+      <img src="{{ pilot_logo_data_uri }}" class="logo" alt="{{ pilot_profile.business_name|default:request_user.get_full_name }} Logo">
+      {% else %}
+      <img src="{% static 'images/logo2.png' %}" class="logo" alt="AirSpace Logo">
+      {% endif %}
       <h1>
         Concept of Operations
         {% with ac=planning.airspace_class|default:""|upper %}

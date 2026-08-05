@@ -14,6 +14,9 @@ from django.utils import timezone
 from django.views.generic import ListView, TemplateView
 from django.http import HttpRequest, HttpResponse
 from weasyprint import HTML
+
+from pilot.models import PilotProfile
+from pilot.utils import image_field_to_data_uri
 from dal_select2.widgets import ModelSelect2
 from dal_select2.views import Select2QuerySetView
 
@@ -160,7 +163,7 @@ def waiver_planning_new(request):
         pilot_profile_data.append(
             {
                 "id": p.id,
-                "license_number": p.license_number or "",
+                "faa_certificate_number": p.faa_certificate_number or "",
                 "flight_hours": hours,
             }
         )
@@ -800,12 +803,18 @@ def conops_pdf_export(request, application_id):
 
     export_sections = sections
 
+    pilot_profile = PilotProfile.objects.filter(user=request.user).first()
+
     context = {
         "application": application,
         "planning": application.planning,
         "sections": export_sections,
         "generated_on": timezone.now(),
         "request_user": request.user,
+        "pilot_profile": pilot_profile,
+        "pilot_logo_data_uri": image_field_to_data_uri(
+            pilot_profile.logo if pilot_profile else None
+        ),
     }
 
     html_string = render_to_string("airspace/conops_pdf.html", context=context, request=request)

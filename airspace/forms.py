@@ -506,8 +506,8 @@ class WaiverPlanningForm(forms.ModelForm):
         pilot_obj = self._selected_pilot()
         if pilot_obj:
             # Certificate
-            if not cleaned.get("pilot_cert_manual") and (pilot_obj.license_number or "").strip():
-                cleaned["pilot_cert_manual"] = pilot_obj.license_number
+            if not cleaned.get("pilot_cert_manual") and (pilot_obj.faa_certificate_number or "").strip():
+                cleaned["pilot_cert_manual"] = pilot_obj.faa_certificate_number
 
             # Flight hours
             if not cleaned.get("pilot_flight_hours"):

@@ -96,7 +96,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 AUTH_USER_MODEL = 'accounts.User'
 
 LOGIN_URL = 'accounts:login'
-LOGIN_REDIRECT_URL = 'accounts:pilot_profile_onboarding'
+LOGIN_REDIRECT_URL = 'pilot:profile_edit'
 LOGOUT_REDIRECT_URL = 'accounts:login'
 
 EMAIL_BACKEND = env('EMAIL_BACKEND', default='django.core.mail.backends.smtp.EmailBackend')

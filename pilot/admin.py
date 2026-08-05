@@ -5,8 +5,8 @@ from .models import Aircraft, PilotProfile
 
 @admin.register(PilotProfile)
 class PilotProfileAdmin(admin.ModelAdmin):
-    list_display = ("user", "license_number", "total_flight_hours", "updated_at")
-    search_fields = ("user__email", "user__first_name", "user__last_name", "license_number")
+    list_display = ("user", "faa_certificate_number", "total_flight_hours", "updated_at")
+    search_fields = ("user__email", "user__first_name", "user__last_name", "faa_certificate_number")
 
 
 @admin.register(Aircraft)
