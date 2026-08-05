@@ -111,7 +111,15 @@
                     {% endfor %}
                 </div>
             {% endif %}
-
+                <div class="text-center mb-5">
+                    <img src="{% static 'images/AirSpace_logo.png' %}" alt="AirSpace Logo"
+                        class="img-fluid shadow-sm rounded"
+                        style="max-height: 250px;">
+                    {% comment %} <h1 class="display-6 text-primary">AirSpace Portal</h1> {% endcomment %}
+                    <p class="text-muted mb-0">
+                    One place for waivers, CONOPS, pilot records, equipment, and flight data.
+                    </p>
+                </div>
             {% block content %}{% endblock %}
         </main>
 
