@@ -1,7 +1,9 @@
 from django.contrib.auth.base_user import BaseUserManager
 from django.contrib.auth.models import AbstractUser
+from django.conf import settings
 from django.db import models
 from django.utils import timezone
+import secrets
 
 
 class UserManager(BaseUserManager):
@@ -54,3 +56,77 @@ class User(AbstractUser):
     def __str__(self):
         full_name = self.get_full_name().strip()
         return full_name or self.email
+
+
+class InvitationManager(models.Manager):
+    def create_for_email(self, *, email, invited_by, lifetime):
+        normalized = User.objects.normalize_email(email).lower()
+        return self.create(
+            email=normalized,
+            invited_by=invited_by,
+            token=secrets.token_urlsafe(32),
+            expires_at=timezone.now() + lifetime,
+        )
+
+
+class Invitation(models.Model):
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        ACCEPTED = "accepted", "Accepted"
+        REVOKED = "revoked", "Revoked"
+
+    email = models.EmailField(db_index=True)
+    token = models.CharField(max_length=64, unique=True, editable=False)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING, db_index=True)
+    invited_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="sent_invitations",
+    )
+    sent_at = models.DateTimeField(null=True, blank=True)
+    expires_at = models.DateTimeField(db_index=True)
+    accepted_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    objects = InvitationManager()
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["email"],
+                condition=models.Q(status="pending"),
+                name="accounts_one_pending_invitation_per_email",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.email} ({self.display_status})"
+
+    @property
+    def is_expired(self):
+        return self.status == self.Status.PENDING and timezone.now() >= self.expires_at
+
+    @property
+    def display_status(self):
+        return "expired" if self.is_expired else self.status
+
+
+class EmailDeliveryLog(models.Model):
+    class Status(models.TextChoices):
+        SENT = "sent", "Sent"
+        FAILED = "failed", "Failed"
+
+    invitation = models.ForeignKey(Invitation, on_delete=models.CASCADE, related_name="delivery_logs")
+    recipient = models.EmailField()
+    subject = models.CharField(max_length=255)
+    status = models.CharField(max_length=20, choices=Status.choices, db_index=True)
+    error_message = models.TextField(blank=True)
+    attempted_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-attempted_at"]
+
+    def __str__(self):
+        return f"{self.recipient} - {self.status}"

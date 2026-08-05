@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 
 from .forms import AdminUserCreationForm, AdminUserChangeForm
-from .models import User
+from .models import EmailDeliveryLog, Invitation, User
 
 
 @admin.register(User)
@@ -31,3 +31,21 @@ class UserAdmin(DjangoUserAdmin):
         ),
     )
     readonly_fields = ('date_joined', 'last_login', 'created_at', 'updated_at')
+
+
+@admin.register(Invitation)
+class InvitationAdmin(admin.ModelAdmin):
+    list_display = ("email", "display_status", "invited_by", "sent_at", "expires_at", "accepted_at")
+    list_filter = ("status", "sent_at", "expires_at")
+    search_fields = ("email", "invited_by__email")
+    readonly_fields = ("token", "created_at", "updated_at", "sent_at", "accepted_at")
+
+
+@admin.register(EmailDeliveryLog)
+class EmailDeliveryLogAdmin(admin.ModelAdmin):
+    list_display = ("recipient", "status", "subject", "attempted_at")
+    list_filter = ("status", "attempted_at")
+    search_fields = ("recipient", "subject", "error_message")
+    readonly_fields = ("invitation", "recipient", "subject", "status", "error_message", "attempted_at")
+    def has_add_permission(self, request):
+        return False

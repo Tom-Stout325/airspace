@@ -131,3 +131,6 @@ if USE_S3:
     }
     STATIC_URL = f"https://{{AWS_STORAGE_BUCKET_NAME}}.s3.{{AWS_S3_REGION_NAME}}.amazonaws.com/static/"
     MEDIA_URL = f"https://{{AWS_STORAGE_BUCKET_NAME}}.s3.{{AWS_S3_REGION_NAME}}.amazonaws.com/media/"
+
+# Invitation-only registration
+INVITATION_EXPIRY_HOURS = env.int('INVITATION_EXPIRY_HOURS', default=72)

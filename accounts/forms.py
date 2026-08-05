@@ -1,5 +1,6 @@
 from django import forms
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 from django.contrib.auth.forms import (
     AuthenticationForm,
     PasswordChangeForm,
@@ -10,6 +11,8 @@ from django.contrib.auth.forms import (
 )
 
 User = get_user_model()
+
+from .models import Invitation
 
 
 class BootstrapMixin:
@@ -107,3 +110,31 @@ class AdminUserChangeForm(forms.ModelForm):
     class Meta:
         model = User
         fields = ('email', 'first_name', 'last_name', 'phone', 'password', 'is_active', 'is_staff', 'is_superuser')
+
+
+class InvitationCreateForm(BootstrapMixin, forms.Form):
+    email = forms.EmailField(label="Email address")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["email"].widget.attrs["placeholder"] = "pilot@example.com"
+        self.apply_bootstrap()
+
+    def clean_email(self):
+        email = User.objects.normalize_email(self.cleaned_data["email"]).lower()
+        if User.objects.filter(email__iexact=email).exists():
+            raise ValidationError("A user with this email address already exists.")
+        if Invitation.objects.filter(email__iexact=email, status=Invitation.Status.PENDING).exists():
+            raise ValidationError("A pending invitation already exists for this email address.")
+        return email
+
+
+class InviteRegistrationForm(RegisterForm):
+    def __init__(self, *args, invitation, **kwargs):
+        self.invitation = invitation
+        super().__init__(*args, **kwargs)
+        self.fields["email"].initial = invitation.email
+        self.fields["email"].disabled = True
+
+    def clean_email(self):
+        return self.invitation.email

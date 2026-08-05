@@ -30,6 +30,11 @@ urlpatterns = [
         name='logout',
     ),
     path('register/', views.register, name='register'),
+    path('invite/<str:token>/', views.invitation_accept, name='invitation_accept'),
+    path('invitations/', views.invitation_list, name='invitation_list'),
+    path('invitations/<int:pk>/resend/', views.invitation_resend, name='invitation_resend'),
+    path('invitations/<int:pk>/revoke/', views.invitation_revoke, name='invitation_revoke'),
+    path('onboarding/pilot-profile/', views.pilot_profile_onboarding, name='pilot_profile_onboarding'),
     path(
         'password-reset/',
         auth_views.PasswordResetView.as_view(
