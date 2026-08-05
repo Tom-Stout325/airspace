@@ -1,6 +1,6 @@
 {% extends 'index.html' %}
 {% load static %}
-{% load flightplan_tags %}
+
 
 {% block title %}AirSpace Portal{% endblock %}
 
@@ -35,7 +35,7 @@
           <div class="text-muted">Total Flight Time</div>
           <h4 class="fw-bold text-info">
             {% if total_flight_time %}
-              {{ total_flight_time|duration }}
+              {{ total_flight_time }}
             {% else %}
               —
             {% endif %}
@@ -162,7 +162,7 @@
             Manage your pilot profile, license, and training records.
           </p>
           <div class="mt-auto">
-            <a href="{% url 'pilot:profile' %}" class="btn btn-warning w-100 text-dark">
+            <a href="{% url 'accounts:pilot_profile_onboarding' %}" class="btn btn-warning w-100 text-dark">
               Go to Profile
             </a>
           </div>

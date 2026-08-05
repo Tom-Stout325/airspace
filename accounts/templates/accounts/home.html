@@ -12,7 +12,12 @@
         <p class="lead text-secondary mb-4">Your account is set up and ready. Next, we can wire pilot profiles and the AirSpace workflow on top of this authentication foundation.</p>
         <div class="d-flex flex-wrap gap-2">
           <a href="{% url 'accounts:password_change' %}" class="btn btn-dark">Change password</a>
-          <a href="{% url 'accounts:logout' %}" class="btn btn-outline-secondary">Log out</a>
+          <form method="post" action="{% url 'accounts:logout' %}" class="d-inline">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline-secondary">
+                Log out
+            </button>
+        </form>
         </div>
       </div>
     </div>

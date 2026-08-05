@@ -22,13 +22,7 @@ urlpatterns = [
         ),
         name='login',
     ),
-    path(
-        'logout/',
-        auth_views.LogoutView.as_view(
-            template_name='accounts/registration/logged_out.html',
-        ),
-        name='logout',
-    ),
+    path('logout/', auth_views.LogoutView.as_view(template_name='accounts/registration/logged_out.html',),name='logout',),
     path('register/', views.register, name='register'),
     path('invite/<str:token>/', views.invitation_accept, name='invitation_accept'),
     path('invitations/', views.invitation_list, name='invitation_list'),

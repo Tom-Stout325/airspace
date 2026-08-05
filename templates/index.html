@@ -19,7 +19,12 @@
               {% if request.user.is_authenticated %}
                 <span class="text-secondary small">{{ request.user.email }}</span>
                 {% if request.user.is_staff %}<a class="btn btn-sm btn-outline-dark" href="{% url 'accounts:invitation_list' %}">Invitations</a>{% endif %}
-                <a class="btn btn-sm btn-outline-dark" href="{% url 'accounts:logout' %}">Log out</a>
+                <form method="post" action="{% url 'accounts:logout' %}" class="d-inline">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-sm btn-outline-dark">
+                      Log out
+                  </button>
+              </form>
               {% else %}
                 <a class="btn btn-sm btn-outline-dark" href="{% url 'accounts:login' %}">Sign in</a>
 
