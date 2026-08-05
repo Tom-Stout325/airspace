@@ -1,0 +1,22 @@
+{% extends "index.html" %}
+{% block title %}Pilot Dashboard | AirSpace{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+    <div><h1 class="h2 mb-1">Pilot Dashboard</h1><p class="text-muted mb-0">Your contact and FAA certificate information used throughout AirSpace.</p></div>
+    <a href="{% url 'pilot:profile_edit' %}" class="btn btn-warning">{% if profile %}Edit profile{% else %}Create profile{% endif %}</a>
+  </div>
+  <div class="row g-4">
+    <div class="col-12 col-lg-8"><div class="card shadow-sm h-100"><div class="card-header bg-white"><h2 class="h5 mb-0">Current information</h2></div><div class="card-body"><dl class="row mb-0">
+      <dt class="col-sm-4">Name</dt><dd class="col-sm-8">{{ request.user.get_full_name|default:"Not provided" }}</dd>
+      <dt class="col-sm-4">Business</dt><dd class="col-sm-8">{{ profile.business_name|default:"Not provided" }}</dd>
+      <dt class="col-sm-4">Email</dt><dd class="col-sm-8">{{ request.user.email }}</dd>
+      <dt class="col-sm-4">Phone</dt><dd class="col-sm-8">{{ profile.phone|default:"Not provided" }}</dd>
+      <dt class="col-sm-4">Address</dt><dd class="col-sm-8">{% if profile and profile.street_address %}{{ profile.street_address }}<br>{{ profile.city }}, {{ profile.state }} {{ profile.zip_code }}{% else %}Not provided{% endif %}</dd>
+      <dt class="col-sm-4">FAA certificate</dt><dd class="col-sm-8">{{ profile.license_number|default:"Not provided" }}</dd>
+    </dl></div></div></div>
+    <div class="col-12 col-lg-4"><div class="card shadow-sm mb-4"><div class="card-body"><h2 class="h5">Profile completion</h2><div class="progress mb-2" role="progressbar" aria-valuenow="{{ completion_percent }}" aria-valuemin="0" aria-valuemax="100"><div class="progress-bar" style="width: {{ completion_percent }}%">{{ completion_percent }}%</div></div><p class="small text-muted mb-0">Business name is optional and is not included in this percentage.</p></div></div>
+    {% if profile %}<div class="card border-danger"><div class="card-body"><h2 class="h6 text-danger">Delete profile data</h2><p class="small">This removes the pilot profile but keeps the login account.</p><a href="{% url 'pilot:profile_delete' %}" class="btn btn-outline-danger btn-sm">Delete profile data</a></div></div>{% endif %}</div>
+  </div>
+</div>
+{% endblock %}

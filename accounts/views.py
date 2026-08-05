@@ -115,15 +115,5 @@ def invitation_revoke(request, pk):
 
 @login_required
 def pilot_profile_onboarding(request):
-    profile, _ = PilotProfile.objects.get_or_create(user=request.user, defaults={'phone': request.user.phone})
-    if request.method == 'POST':
-        request.user.first_name = request.POST.get('first_name', '').strip()
-        request.user.last_name = request.POST.get('last_name', '').strip()
-        request.user.phone = request.POST.get('phone', '').strip()
-        profile.phone = request.user.phone
-        profile.license_number = request.POST.get('license_number', '').strip()
-        request.user.save(update_fields=['first_name', 'last_name', 'phone', 'updated_at'])
-        profile.save(update_fields=['phone', 'license_number', 'updated_at'])
-        messages.success(request, 'Pilot profile saved.')
-        return redirect('airspace:airspace_portal')
-    return render(request, 'accounts/pilot_profile_onboarding.html', {'profile': profile})
+    """Backward-compatible onboarding URL for existing invitation links."""
+    return redirect("pilot:profile_edit")

@@ -6,8 +6,13 @@ from django.db import models
 
 class PilotProfile(models.Model):
     user                 = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="pilot_profile")
-    license_number       = models.CharField(max_length=100, blank=True)
-    phone                = models.CharField(max_length=25, blank=True)
+    business_name       = models.CharField(max_length=200, blank=True)
+    street_address      = models.CharField(max_length=255, blank=True)
+    city                = models.CharField(max_length=100, blank=True)
+    state               = models.CharField(max_length=2, blank=True)
+    zip_code            = models.CharField(max_length=10, blank=True)
+    phone               = models.CharField(max_length=25, blank=True)
+    license_number      = models.CharField(max_length=100, blank=True)
     total_flight_hours   = models.DecimalField(max_digits=8, decimal_places=1, null=True, blank=True)
     created_at           = models.DateTimeField(auto_now_add=True)
     updated_at           = models.DateTimeField(auto_now=True)
