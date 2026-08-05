@@ -1,0 +1,261 @@
+{% extends "index.html" %}
+
+{% block title %}Airspace Waiver Form{% endblock %}
+<style>
+  .coord-row-label {
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+  }
+
+  .coord-box {
+    background-color: #ffffff;
+    border: 1px solid #dee2e6;
+    border-radius: 0.25rem;
+    padding: 0.4rem 0.75rem 0.6rem;
+  }
+
+  .coord-box-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #6c757d;
+    margin-bottom: 0.15rem;
+  }
+
+  .coord-box .form-control,
+  .coord-box .form-select {
+    border: none;
+    padding: 0;
+    height: auto;
+    box-shadow: none;
+  }
+
+  .coord-box .form-control:focus,
+  .coord-box .form-select:focus {
+    box-shadow: none;
+    outline: none;
+  }
+</style>
+{% block content %}
+  <div class="container my-4" style="max-width: 900px;">
+    <h2 class="mb-2 text-primary">Airspace Waiver Draft</h2>
+    <p class="text-muted mb-4">
+      This is the information you will need in order to complete your FAA Airspace Waiver Application. Complete this form to capture the key details for your FAA airspace waiver. Later, FlightPlan can
+      use this information to generate a CONOPS draft and copy/paste text for FAADroneZone.
+    </p>
+
+
+
+    <form method="post" novalidate>
+      {% csrf_token %}
+      {% if planning_id %}
+        <input type="hidden" name="planning_id" value="{{ planning_id }}">
+      {% endif %}
+
+  
+
+      <!-- 1. Operation Overview -->
+      <div class="card mb-4 shadow-sm">
+        <div class="card-header fw-semibold">1. Operation Overview</div>
+        <div class="card-body">
+          <div class="mb-3">
+            {{ form.operation_title.label_tag }}
+            {{ form.operation_title }}
+            {{ form.operation_title.errors }}
+          </div>
+
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              {{ form.start_date.label_tag }}
+              {{ form.start_date }}
+              {{ form.start_date.errors }}
+            </div>
+            <div class="col-md-6 mb-3">
+              {{ form.end_date.label_tag }}
+              {{ form.end_date }}
+              {{ form.end_date.errors }}
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col-md-4 mb-3">
+              {{ form.timeframe.label_tag }}
+              {{ form.timeframe }}
+              {{ form.timeframe.errors }}
+            </div>
+            <div class="col-md-4 mb-3">
+              {{ form.frequency.label_tag }}
+              {{ form.frequency }}
+              {{ form.frequency.errors }}
+            </div>
+            <div class="col-md-4 mb-3">
+              {{ form.local_timezone.label_tag }}
+              {{ form.local_timezone }}
+              {{ form.local_timezone.errors }}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. Location -->
+      <div class="card mb-4 shadow-sm">
+        <div class="card-header fw-semibold">2. Location & Airspace Details</div>
+        <div class="card-body">
+          <div class="mb-3">
+            {{ form.proposed_location.label_tag }}
+            {{ form.proposed_location }}
+            {{ form.proposed_location.errors }}
+          </div>
+
+          <div class="row">
+            <div class="col-md-4 mb-3">
+              {{ form.max_agl.label_tag }}
+              {{ form.max_agl }}
+              {{ form.max_agl.errors }}
+            </div>
+
+          <!-- Latitude (DMS) -->
+          <div class="mb-3">
+            <div class="coord-row-label">Latitude</div>
+            <div class="row g-3">
+              <div class="col-md-3">
+                <div class="coord-box">
+                  <div class="coord-box-label">Degrees*</div>
+                  {{ form.lat_degrees }}
+                  {{ form.lat_degrees.errors }}
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="coord-box">
+                  <div class="coord-box-label">Minutes*</div>
+                  {{ form.lat_minutes }}
+                  {{ form.lat_minutes.errors }}
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="coord-box">
+                  <div class="coord-box-label">Seconds*</div>
+                  {{ form.lat_seconds }}
+                  {{ form.lat_seconds.errors }}
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="coord-box">
+                  <div class="coord-box-label">Direction*</div>
+                  {{ form.lat_direction }}
+                  {{ form.lat_direction.errors }}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Longitude (DMS) -->
+          <div class="mb-3">
+            <div class="coord-row-label">Longitude</div>
+            <div class="row g-3">
+              <div class="col-md-3">
+                <div class="coord-box">
+                  <div class="coord-box-label">Degrees*</div>
+                  {{ form.lon_degrees }}
+                  {{ form.lon_degrees.errors }}
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="coord-box">
+                  <div class="coord-box-label">Minutes*</div>
+                  {{ form.lon_minutes }}
+                  {{ form.lon_minutes.errors }}
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="coord-box">
+                  <div class="coord-box-label">Seconds*</div>
+                  {{ form.lon_seconds }}
+                  {{ form.lon_seconds.errors }}
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="coord-box">
+                  <div class="coord-box-label">Direction*</div>
+                  {{ form.lon_direction }}
+                  {{ form.lon_direction.errors }}
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="row">
+            <div class="col-md-4 mb-3">
+              {{ form.radius_nm.label_tag }}
+              {{ form.radius_nm }}
+              {{ form.radius_nm.errors }}
+            </div>
+            <div class="col-md-4 mb-3">
+              {{ form.nearest_airport.label_tag }}
+              {{ form.nearest_airport }}
+              {{ form.nearest_airport.errors }}
+            </div>
+            <div class="col-md-4 mb-3">
+              {{ form.airspace_class.label_tag }}
+              {{ form.airspace_class }}
+              {{ form.airspace_class.errors }}
+            </div>
+          </div>
+        </div>
+      </div>
+
+    <!-- 3. Description & Existing Waivers -->
+<div class="card mb-4 shadow-sm">
+  <div class="card-header fw-semibold">3. Operational Description & Existing Waivers</div>
+  <div class="card-body">
+
+    <!-- Brief Description + Regenerate Button -->
+    <div class="mb-3">
+      <div class="d-flex justify-content-between align-items-center mb-1">
+        {{ form.short_description.label_tag }}
+        <button
+          type="submit"
+          name="regen_short_description"
+          value="1"
+          class="btn btn-outline-secondary btn-sm"
+        >
+          Regenerate from waiver details
+        </button>
+      </div>
+
+      {{ form.short_description }}
+      {{ form.short_description.errors }}
+    </div>
+
+
+          <div class="mb-3">
+            {{ form.has_related_waiver.label_tag }}
+            {{ form.has_related_waiver }}
+            {{ form.has_related_waiver.errors }}
+          </div>
+
+          <div class="mb-3">
+            {{ form.related_waiver_details.label_tag }}
+            {{ form.related_waiver_details }}
+            {{ form.related_waiver_details.errors }}
+          </div>
+        </div>
+      </div>
+
+      <div class="d-flex justify-content-between align-items-center mb-5">
+        <a href="{% url 'airspace:waiver' %}" class="btn btn-outline-secondary">
+          ← Back to Waiver Helper
+        </a>
+        <button type="submit" class="btn btn-primary">
+          Save Waiver Draft
+        </button>
+      </div>
+    </form>
+    {% if lat_decimal and lon_decimal %}
+    <div class="alert alert-info mt-3">
+      <strong>Decimal coordinates:</strong>
+      Latitude: {{ lat_decimal }} &nbsp;|&nbsp;
+      Longitude: {{ lon_decimal }}
+    </div>
+  {% endif %}
+  </div>
+{% endblock %}

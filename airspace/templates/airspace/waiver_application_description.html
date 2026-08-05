@@ -1,0 +1,463 @@
+{% extends "index.html" %}
+
+{% block title %}Description of Operations: {{ planning.operation_title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+  /* -----------------------------
+     Checkbox grid styling
+  ------------------------------ */
+  .purpose-grid ul,
+  .ground-grid ul,
+  .procedures-grid ul {
+    list-style: none;
+    padding-left: 0;
+    margin: 0;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: .75rem;
+  }
+
+  @media (min-width: 768px) {
+    .purpose-grid ul { grid-template-columns: 1fr 1fr; column-gap: 1.25rem; }
+  }
+
+  @media (min-width: 576px) {
+    .ground-grid ul { grid-template-columns: 1fr 1fr; }
+    .procedures-grid ul { grid-template-columns: 1fr 1fr; gap: 1rem 1.5rem; }
+  }
+
+  @media (min-width: 992px) {
+    .ground-grid ul { grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+  }
+
+  .purpose-grid li,
+  .ground-grid li,
+  .procedures-grid li { margin: 0; }
+
+  .purpose-grid label,
+  .ground-grid label,
+  .procedures-grid label {
+    display: inline-flex;
+    align-items: flex-start;
+    gap: .5rem;
+    line-height: 1.4;
+    cursor: pointer;
+    font-weight: normal;
+    margin: 0;
+  }
+
+  /* hard override in case you have global input{width:100%} */
+  .purpose-grid input[type="checkbox"],
+  .ground-grid input[type="checkbox"],
+  .procedures-grid input[type="checkbox"] {
+    width: 1.1rem !important;
+    height: 1.1rem !important;
+    margin-top: .15rem;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    flex: 0 0 auto;
+  }
+
+  .purpose-grid label span,
+  .ground-grid label span,
+  .procedures-grid label span {
+    display: inline-block;
+    margin-top: 0.15rem;
+  }
+</style>
+{% endblock %}
+
+
+
+{% block content %}
+<div class="container my-4 my-md-5" style="max-width: 1100px;">
+
+  <form id="description-form" method="post" enctype="multipart/form-data" class="needs-validation" novalidate>
+    {% csrf_token %}
+
+    <div class="d-flex justify-content-between align-items-center mb-3 gap-3">
+      <h1 class="h5 mb-0">
+        Description of Operations – {{ planning.operation_title }}
+      </h1>
+      <a href="{% url 'airspace:waiver_application_overview' planning_id=planning.id %}"
+         class="btn btn-outline-secondary btn-sm">
+        ← Back to Waiver Overview
+      </a>
+    </div>
+
+    {# -------------------------------------------------- #}
+    {# 1. Description Inputs (editable planning fields)   #}
+    {# -------------------------------------------------- #}
+    <div class="card mb-4 shadow-sm">
+      <div class="card-header bg-white border-bottom-0 pb-0">
+        <p class="text-uppercase text-muted small mb-1">Description Inputs</p>
+        <p class="mb-2 small text-muted">
+          Adjust these fields, then click <strong>Save Changes</strong> or
+          <strong>Generate Description</strong> to update the narrative below.
+        </p>
+      </div>
+
+      <div class="card-body pt-3">
+        <h6 class="text-muted mb-2">Aircraft & Pilot</h6>
+
+        <p class="mb-2">
+          <strong>Primary aircraft:</strong>
+          {{ aircraft_ctx.primary|default:"—" }}
+        </p>
+
+        {% if aircraft_ctx.manual_list %}
+          <p class="mb-2">
+            <strong>Additional / alternate aircraft:</strong>
+            {{ aircraft_ctx.manual_list|join:", " }}
+          </p>
+        {% endif %}
+
+        <p class="mb-2">
+          <strong>Remote Pilot in Command (PIC):</strong>
+          {% if planning.pilot_profile %}
+            {{ planning.pilot_profile.user.get_full_name|default:planning.pilot_profile.user.email }}
+          {% elif planning.pilot_name_manual %}
+            {{ planning.pilot_name_manual }}
+          {% else %}
+            <span class="text-muted">Not set</span>
+          {% endif %}
+        </p>
+
+        {# If you later add pilot_ctx again, this will just safely do nothing #}
+        {% if pilot_ctx and pilot_ctx.flight_hours %}
+          <p class="mb-0 text-muted small">
+            Approximate UAS flight experience: {{ pilot_ctx.flight_hours }} hours
+          </p>
+        {% endif %}
+      </div>
+
+      <hr class="my-0">
+
+      <div class="card-body pt-3">
+        <div class="d-flex justify-content-between align-items-start gap-3">
+          <div>
+            <div class="text-uppercase text-muted small mb-1">Purpose of Drone Operations</div>
+            <div class="text-muted small">Select all purposes that apply to this operation.</div>
+          </div>
+        </div>
+
+        <div class="purpose-grid mt-3">
+          <ul>
+            {% for choice in planning_form.purpose_operations %}
+              <li>
+                <label for="{{ choice.id_for_label }}">
+                  {{ choice.tag }}
+                  <span>{{ choice.choice_label }}</span>
+                </label>
+              </li>
+            {% empty %}
+              <li class="text-muted small">No purpose options available.</li>
+            {% endfor %}
+          </ul>
+        </div>
+
+        <div class="mt-3">
+          {{ planning_form.purpose_operations_details.label_tag }}
+          {{ planning_form.purpose_operations_details }}
+          {{ planning_form.purpose_operations_details.errors }}
+        </div>
+      </div>
+
+      <hr class="my-0">
+
+      <div class="card-body pt-3">
+        <h6 class="text-muted mb-2">Venue & Launch Location</h6>
+
+        <div class="row g-3 mb-3">
+          <div class="col-12 col-md-6">
+            {{ planning_form.venue_name.label_tag }}
+            {{ planning_form.venue_name }}
+            {{ planning_form.venue_name.errors }}
+          </div>
+          <div class="col-12 col-md-6">
+            {{ planning_form.street_address.label_tag }}
+            {{ planning_form.street_address }}
+            {{ planning_form.street_address.errors }}
+          </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+          <div class="col-12 col-md-4">
+            {{ planning_form.location_city.label_tag }}
+            {{ planning_form.location_city }}
+            {{ planning_form.location_city.errors }}
+          </div>
+          <div class="col-6 col-md-4">
+            {{ planning_form.location_state.label_tag }}
+            {{ planning_form.location_state }}
+            {{ planning_form.location_state.errors }}
+          </div>
+          <div class="col-6 col-md-4">
+            {{ planning_form.zip_code.label_tag }}
+            {{ planning_form.zip_code }}
+            {{ planning_form.zip_code.errors }}
+          </div>
+        </div>
+
+        <div class="mb-0">
+          {{ planning_form.launch_location.label_tag }}
+          {{ planning_form.launch_location }}
+          {{ planning_form.launch_location.errors }}
+        </div>
+      </div>
+
+      <hr class="my-0">
+
+      <div class="card-body pt-3">
+        <h6 class="text-muted mb-2">Safety Systems & Insurance</h6>
+
+        <div class="row g-3 mb-3">
+          <div class="col-12 col-md-4">
+            <div class="form-check">
+              {{ planning_form.uses_drone_detection }}
+              <label class="form-check-label" for="{{ planning_form.uses_drone_detection.id_for_label }}">
+                Drone detection in use
+              </label>
+            </div>
+            {{ planning_form.uses_drone_detection.errors }}
+          </div>
+
+          <div class="col-12 col-md-4">
+            <div class="form-check">
+              {{ planning_form.uses_flight_tracking }}
+              <label class="form-check-label" for="{{ planning_form.uses_flight_tracking.id_for_label }}">
+                Flight tracking monitored
+              </label>
+            </div>
+            {{ planning_form.uses_flight_tracking.errors }}
+          </div>
+
+          <div class="col-12 col-md-4">
+            <div class="form-check">
+              {{ planning_form.has_visual_observer }}
+              <label class="form-check-label" for="{{ planning_form.has_visual_observer.id_for_label }}">
+                Visual Observer(s) used
+              </label>
+            </div>
+            {{ planning_form.has_visual_observer.errors }}
+          </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+          <div class="col-12 col-md-6">
+            {{ planning_form.insurance_provider.label_tag }}
+            {{ planning_form.insurance_provider }}
+            {{ planning_form.insurance_provider.errors }}
+          </div>
+          <div class="col-12 col-md-6">
+            {{ planning_form.insurance_coverage_limit.label_tag }}
+            {{ planning_form.insurance_coverage_limit }}
+            {{ planning_form.insurance_coverage_limit.errors }}
+          </div>
+        </div>
+
+        <div class="mb-0">
+          {{ planning_form.safety_features_notes.label_tag }}
+          {{ planning_form.safety_features_notes }}
+          {{ planning_form.safety_features_notes.errors }}
+        </div>
+      </div>
+
+      <hr class="my-0">
+
+      <div class="card-body pt-3">
+        <h6 class="text-muted mb-2">Operational Profile & Ground Environment</h6>
+
+        <div class="row g-3 mb-3">
+          <div class="col-12 col-md-4">
+            {{ planning_form.aircraft_count.label_tag }}
+            {{ planning_form.aircraft_count }}
+            {{ planning_form.aircraft_count.errors }}
+          </div>
+          <div class="col-12 col-md-4">
+            {{ planning_form.flight_duration.label_tag }}
+            {{ planning_form.flight_duration }}
+            {{ planning_form.flight_duration.errors }}
+          </div>
+          <div class="col-12 col-md-4">
+            {{ planning_form.flights_per_day.label_tag }}
+            {{ planning_form.flights_per_day }}
+            {{ planning_form.flights_per_day.errors }}
+          </div>
+        </div>
+
+        <div class="mb-3">
+          {{ planning_form.ground_environment.label_tag }}
+          <div class="ground-grid mt-3">
+            <ul>
+              {% for choice in planning_form.ground_environment %}
+                <li>
+                  <label for="{{ choice.id_for_label }}">
+                    {{ choice.tag }}
+                    <span>{{ choice.choice_label }}</span>
+                  </label>
+                </li>
+              {% empty %}
+                <li class="text-muted small">No ground environment options available.</li>
+              {% endfor %}
+            </ul>
+          </div>
+          {{ planning_form.ground_environment.errors }}
+        </div>
+
+        <div class="mb-3">
+          {{ planning_form.estimated_crowd_size.label_tag }}
+          {{ planning_form.estimated_crowd_size }}
+          {{ planning_form.estimated_crowd_size.errors }}
+        </div>
+
+        <div class="mb-0">
+          {{ planning_form.prepared_procedures.label_tag }}
+          <div class="procedures-grid mt-3">
+            <ul>
+              {% for choice in planning_form.prepared_procedures %}
+                <li>
+                  <label for="{{ choice.id_for_label }}">
+                    {{ choice.tag }}
+                    <span>{{ choice.choice_label }}</span>
+                  </label>
+                </li>
+              {% empty %}
+                <li class="text-muted small">No procedures defined.</li>
+              {% endfor %}
+            </ul>
+          </div>
+          {{ planning_form.prepared_procedures.errors }}
+        </div>
+      </div>
+    </div>
+
+    {# -------------------------------------------------- #}
+    {# 2. Description Textarea                            #}
+    {# -------------------------------------------------- #}
+    <div class="card shadow-sm mb-3">
+      <div class="card-header bg-white border-bottom-0 pb-0">
+        <p class="text-uppercase text-muted small mb-1">Description of Operations</p>
+      </div>
+      <div class="card-body pt-3">
+        {{ app_form.description.label_tag }}
+        {{ app_form.description }}
+        {{ app_form.description.errors }}
+
+        <div class="form-text">
+          Edit as needed. “Generate Description” will overwrite this field with a new draft based on the inputs above.
+        </div>
+      </div>
+    </div>
+
+    <div class="form-check mb-2">
+      <input class="form-check-input"
+             type="checkbox"
+             id="lockDescription"
+             name="locked_description"
+             value="1"
+             {% if application.locked_description %}checked{% endif %}>
+      <label class="form-check-label" for="lockDescription">
+        Lock this Description (prevent overwrite)
+      </label>
+      <div class="form-text">
+        When locked, “Generate Description” is disabled to prevent accidental overwrites.
+      </div>
+    </div>
+
+    {# Buttons #}
+    <div class="d-flex justify-content-between align-items-center mt-3">
+      <a href="{% url 'airspace:waiver_application_overview' planning_id=planning.id %}"
+         class="btn btn-outline-secondary">
+        ← Back to Waiver Overview
+      </a>
+
+      <div class="d-flex gap-2">
+        {# Keep legacy name/value pairs to match your current view #}
+        <button type="submit" name="save" value="1" class="btn btn-outline-primary">
+          Save Changes
+        </button>
+
+        <button type="submit"
+                name="generate"
+                value="1"
+                class="btn btn-primary"
+                id="btn-generate-description"
+                {% if application.locked_description %}disabled{% endif %}>
+          Generate Description
+        </button>
+
+        {# Future-proof: consistent action param if you standardize later #}
+        <input type="hidden" name="action" id="actionField" value="">
+      </div>
+    </div>
+
+  </form>
+</div>
+<div id="generate-overlay"
+     class="position-fixed top-0 start-0 w-100 h-100 d-none"
+     style="background: rgba(0,0,0,.35); z-index: 2000;">
+  <div class="d-flex h-100 align-items-center justify-content-center">
+    <div class="bg-white rounded-4 shadow p-4 text-center" style="max-width: 340px;">
+      <div class="spinner-border" role="status" aria-hidden="true"></div>
+      <div class="mt-3 fw-semibold">Generating Description of Operations</div>
+      <div class="text-muted small">This can take ~30 seconds.</div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+
+{% block extra_js %}
+<script>
+  (function () {
+    const form = document.getElementById("description-form");
+    const overlay = document.getElementById("generate-overlay");
+    const genBtn = document.getElementById("btn-generate-description");
+    const lock = document.getElementById("lockDescription");
+
+    if (!form || !overlay || !genBtn) return;
+
+    function showOverlay() {
+      overlay.classList.remove("d-none");
+    }
+    function hideOverlay() {
+      overlay.classList.add("d-none");
+    }
+
+    function syncLock() {
+      if (!lock) return;
+      genBtn.disabled = lock.checked;
+    }
+    if (lock) {
+      lock.addEventListener("change", syncLock);
+      syncLock();
+    }
+
+    // ✅ Show overlay only when the form is actually submitting
+    form.addEventListener("submit", function (e) {
+      const submitter = e.submitter; // modern browsers
+      if (!submitter) return;
+
+      // Only show overlay for the Generate button
+      if (submitter.name === "generate" && submitter.value === "1") {
+        showOverlay();
+
+        // Disable AFTER submit is in motion (avoid cancelling submission)
+        window.setTimeout(() => {
+          genBtn.disabled = true;
+        }, 0);
+      }
+    });
+
+    // If user hits back and browser restores the page, hide overlay again
+    window.addEventListener("pageshow", function () {
+      hideOverlay();
+      genBtn.disabled = lock ? lock.checked : false;
+    });
+  })();
+</script>
+
+{% endblock %}

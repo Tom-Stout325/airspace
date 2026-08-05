@@ -1,0 +1,683 @@
+{% extends "index.html" %}
+{% load static %}
+
+{% block title %}Airspace Waiver Draft{% endblock %}
+
+{% block content %}
+<div class="container my-4 my-md-5">
+
+  <!-- Heading -->
+  <h2 class="text-center text-primary mb-2">Airspace Waiver</h2>
+  <p class="text-center text-muted mb-4">
+    Step {{ current_step_number }} of {{ total_steps }} – {{ current_step_key|capfirst }}
+  </p>
+
+  <!-- Progress bar -->
+  <div class="progress mb-4" style="height: .75rem;">
+    <div class="progress-bar" style="width: {{ progress_percent }}%;"></div>
+  </div>
+
+  <!-- Step navigation pills -->
+  <ul class="nav nav-pills nav-fill mb-4 small">
+    {% for key, title in step_titles.items %}
+      {% with idx=forloop.counter %}
+        <li class="nav-item">
+          <span
+            class="nav-link
+              {% if wizard.steps.current == key %}
+                active
+              {% elif idx < current_step_number %}
+                bg-success text-white
+              {% else %}
+                disabled
+              {% endif %}"
+            style="cursor: default;"
+          >
+            <strong>Step {{ idx }}</strong>
+            <span class="d-none d-md-inline"> – {{ title }}</span>
+          </span>
+        </li>
+      {% endwith %}
+    {% endfor %}
+  </ul>
+
+
+  <div class="card shadow-sm">
+    <div class="card-body">
+
+      <!-- Optional planning snapshot -->
+      {% if planning_snapshot %}
+        <div class="alert alert-info small mb-4">
+          <div class="fw-semibold mb-1">Planning snapshot</div>
+          <ul class="ps-3 mb-0">
+            {% if planning_snapshot.aircraft %}
+              <li><strong>Aircraft:</strong> {{ planning_snapshot.aircraft }}</li>
+            {% endif %}
+            {% if planning_snapshot.pilot %}
+              <li>
+                <strong>Pilot:</strong> {{ planning_snapshot.pilot }}
+                {% if planning_snapshot.pilot_cert %}(Cert: {{ planning_snapshot.pilot_cert }}){% endif %}
+                {% if planning_snapshot.flight_hours %} – {{ planning_snapshot.flight_hours }} hours{% endif %}
+              </li>
+            {% endif %}
+            {% if planning_snapshot.oop_flag %}
+              <li>
+                <strong>Operations Over People:</strong> Yes
+                {% if planning_snapshot.oop_number %}({{ planning_snapshot.oop_number }}){% endif %}
+              </li>
+            {% endif %}
+          </ul>
+        </div>
+      {% endif %}
+
+      <form method="post" novalidate>
+        {% csrf_token %}
+        {{ wizard.management_form }}
+
+        {% for hidden in form.hidden_fields %}
+          {{ hidden }}
+        {% endfor %}
+
+        {{ form.non_field_errors }}
+
+        {% if form.errors %}
+          <div class="alert alert-danger small">
+            Please correct the errors below.
+          </div>
+        {% endif %}
+
+        {# ===================================================== #}
+        {# STEP 1 – OVERVIEW                                    #}
+        {# ===================================================== #}
+
+        {% if current_step_key == "overview" %}
+          <div class="row g-3">
+            <!-- Operation title -->
+            <div class="col-12 col-md-5 text-center">
+              <label class="form-label fw-semibold fs-4 text-primary" for="{{ form.operation_title.id_for_label }}">
+                {{ form.operation_title.label }}
+                {% if form.operation_title.field.required %}<span class="text-danger">*</span>{% endif %}
+              </label>
+              {{ form.operation_title }}
+              {% if form.operation_title.help_text %}
+                <div class="form-text">{{ form.operation_title.help_text }}</div>
+              {% endif %}
+              {% if form.operation_title.errors %}
+                <div class="text-danger small">{{ form.operation_title.errors|striptags }}</div>
+              {% endif %}
+            </div>
+
+            <!-- Start - End Dates -->
+            <div class="col-12 col-md-3 text-center">
+              <label class="form-label fw-semibold text-primary fs-4"
+                     for="{{ form.start_date.id_for_label }}">
+                {{ form.start_date.label }}
+                {% if form.start_date.field.required %}<span class="text-danger">*</span>{% endif %}
+              </label>
+              {{ form.start_date }}
+              {% if form.start_date.errors %}
+                <div class="text-danger small">{{ form.start_date.errors|striptags }}</div>
+              {% endif %}
+            </div>
+
+            <div class="col-12 col-md-3 text-center">
+              <label class="form-label fw-semibold text-primary fs-4" for="{{ form.end_date.id_for_label }}">
+                {{ form.end_date.label }}
+                {% if form.end_date.field.required %}<span class="text-danger">*</span>{% endif %}
+              </label>
+              {{ form.end_date }}
+              {% if form.end_date.errors %}
+                <div class="text-danger small">{{ form.end_date.errors|striptags }}</div>
+              {% endif %}
+            </div>
+          </div>
+
+          <hr>
+
+          <!-- Timeframe -->
+          <div class="row text-center">
+            <div class="col-12">
+              <p>
+                <label class="form-label fw-semibold fs-5 text-primary">
+                  {{ form.timeframe.label }}
+                  {% if form.timeframe.field.required %}<span class="text-danger">*</span>{% endif %}
+                </label>
+              </p>
+              <div class="timeframe-group">
+                {% for opt in form.timeframe %}
+                  <label class="timeframe-item">
+                    {{ opt.tag }} {{ opt.choice_label }}
+                  </label>
+                {% endfor %}
+              </div>
+              {% if form.timeframe.help_text %}
+                <div class="form-text">{{ form.timeframe.help_text }}</div>
+              {% endif %}
+              {% if form.timeframe.errors %}
+                <div class="text-danger small">{{ form.timeframe.errors|striptags }}</div>
+              {% endif %}
+            </div>
+          </div>
+
+          <hr>
+
+          <div class="row">
+            <!-- Frequency & timezone -->
+            <div class="col-12 col-md-6 text-center">
+              <label class="form-label fw-semibold text-primary fs-5" for="{{ form.frequency.id_for_label }}">
+                {{ form.frequency.label }}
+                {% if form.frequency.field.required %}<span class="text-danger">*</span>{% endif %}
+              </label>
+              {{ form.frequency }}
+              {% if form.frequency.errors %}
+                <div class="text-danger small">{{ form.frequency.errors|striptags }}</div>
+              {% endif %}
+            </div>
+
+            <div class="col-12 col-md-6 text-center">
+              <label class="form-label fw-semibold text-primary fs-5" for="{{ form.local_timezone.id_for_label }}">
+                {{ form.local_timezone.label }}
+                {% if form.local_timezone.field.required %}<span class="text-danger">*</span>{% endif %}
+              </label>
+              {{ form.local_timezone }}
+              {% if form.local_timezone.errors %}
+                <div class="text-danger small">{{ form.local_timezone.errors|striptags }}</div>
+              {% endif %}
+            </div>
+
+            <!-- Aircraft -->
+            <div class="col-12 col-md-6 text-center">
+              <label class="form-label fw-semibold fs-5 text-primary" for="{{ form.aircraft.id_for_label }}">
+                {{ form.aircraft.label }}
+              </label>
+              {{ form.aircraft }}
+              {% if form.aircraft.help_text %}
+                <div class="form-text">{{ form.aircraft.help_text }}</div>
+              {% endif %}
+              {% if form.aircraft.errors %}
+                <div class="text-danger small">{{ form.aircraft.errors|striptags }}</div>
+              {% endif %}
+            </div>
+
+            <div class="col-12 col-md-6 text-center mb-3">
+              <label class="form-label fw-semibold text-primary fs-5" for="{{ form.aircraft_custom.id_for_label }}">
+                {{ form.aircraft_custom.label }}
+              </label>
+              {{ form.aircraft_custom }}
+              {% if form.aircraft_custom.help_text %}
+                <div class="form-text">{{ form.aircraft_custom.help_text }}</div>
+              {% endif %}
+              {% if form.aircraft_custom.errors %}
+                <div class="text-danger small">{{ form.aircraft_custom.errors|striptags }}</div>
+              {% endif %}
+            </div>
+
+            <hr>
+
+            <!-- Location Description -->
+            <div class="col-12 text-center mx-auto my-5">
+              <label class="form-label fw-semibold text-primary fs-5" for="{{ form.proposed_location.id_for_label }}">
+                {{ form.proposed_location.label }}
+                {% if form.proposed_location.field.required %}<span class="text-danger">*</span>{% endif %}
+              </label>
+              {{ form.proposed_location }}
+              {% if form.proposed_location.help_text %}
+                <div class="form-text">{{ form.proposed_location.help_text }}</div>
+              {% endif %}
+              {% if form.proposed_location.errors %}
+                <div class="text-danger small">{{ form.proposed_location.errors|striptags }}</div>
+              {% endif %}
+            </div>
+
+            <!-- Max AGL -->
+            <div class="col-12 mb-3 w-50 mx-auto text-center mt-2 mb-5">
+              <label class="form-label fw-semibold fs-5 text-primary" for="{{ form.max_agl.id_for_label }}">
+                {{ form.max_agl.label }}
+                {% if form.max_agl.field.required %}<span class="text-danger">*</span>{% endif %}
+              </label>
+              {{ form.max_agl }}
+              {% if form.max_agl.help_text %}
+                <div class="form-text">{{ form.max_agl.help_text }}</div>
+              {% endif %}
+              {% if form.max_agl.errors %}
+                <div class="text-danger small">{{ form.max_agl.errors|striptags }}</div>
+              {% endif %}
+            </div>
+
+            <hr>
+
+            <!-- Operational Activities  -->
+            <div class="col-12 w-75 mx-auto my-5 ">
+              <div class="section-title mb-3 fs-5 text-primary text-center">
+                Purpose of Drone Operations <small class="text-muted fs-6">(select all that apply)</small>
+              </div>
+
+              <div class="row row-cols-1 row-cols-md-2 g-4">
+                {% for value, label in form.operation_activities.field.choices %}
+                  <div class="col">
+                    <div class="form-check">
+                      <input class="form-check-input"
+                             type="checkbox"
+                             name="{{ form.operation_activities.html_name }}"
+                             value="{{ value }}"
+                             id="id_activity_{{ forloop.counter }}"
+                             {% if value in form.operation_activities.value|default:"" %}checked{% endif %}>
+                      <label class="form-check-label fw-medium ps-2" for="id_activity_{{ forloop.counter }}">
+                        {{ label }}
+                      </label>
+                    </div>
+                  </div>
+                {% endfor %}
+              </div>
+
+              {% if form.operation_activities.errors %}
+                <div class="text-danger small mt-2">{{ form.operation_activities.errors|striptags }}</div>
+              {% endif %}
+            </div>
+
+            {% if form.operation_activities.errors %}
+              <div class="text-danger small">
+                {{ form.operation_activities.errors|striptags }}
+              </div>
+            {% endif %}
+
+            <!-- Additional details -->
+            <div class="col-12 w-50 mx-auto">
+              <label class="form-label fw-semibold" for="{{ form.operation_activities_other.id_for_label }}">
+                {{ form.operation_activities_other.label }}
+              </label>
+              {{ form.operation_activities_other }}
+              {% if form.operation_activities_other.help_text %}
+                <div class="form-text">{{ form.operation_activities_other.help_text }}</div>
+              {% endif %}
+              {% if form.operation_activities_other.errors %}
+                <div class="text-danger small">{{ form.operation_activities_other.errors|striptags }}</div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        <!-- Operational Activities -->
+
+        {# ===================================================== #}
+        {# STEP 2 – LOCATION & AIRSPACE                         #}
+        {# ===================================================== #}
+
+        {% elif current_step_key == "location" %}
+          <div class="row g-3">
+
+            <!-- Latitude -->
+            <div class="col-12">
+              <div class="row g-3">
+                <div class="col-6 col-md-3">
+                  <label class="form-label fw-semibold" for="{{ form.lat_degrees.id_for_label }}">
+                    {{ form.lat_degrees.label }}
+                  </label>
+                  {{ form.lat_degrees }}
+                  {% if form.lat_degrees.errors %}
+                    <div class="text-danger small">{{ form.lat_degrees.errors|striptags }}</div>
+                  {% endif %}
+                </div>
+
+                <div class="col-6 col-md-3">
+                  <label class="form-label fw-semibold" for="{{ form.lat_minutes.id_for_label }}">
+                    {{ form.lat_minutes.label }}
+                  </label>
+                  {{ form.lat_minutes }}
+                  {% if form.lat_minutes.errors %}
+                    <div class="text-danger small">{{ form.lat_minutes.errors|striptags }}</div>
+                  {% endif %}
+                </div>
+
+                <div class="col-6 col-md-3">
+                  <label class="form-label fw-semibold" for="{{ form.lat_seconds.id_for_label }}">
+                    {{ form.lat_seconds.label }}
+                  </label>
+                  {{ form.lat_seconds }}
+                  {% if form.lat_seconds.errors %}
+                    <div class="text-danger small">{{ form.lat_seconds.errors|striptags }}</div>
+                  {% endif %}
+                </div>
+
+                <div class="col-6 col-md-3">
+                  <label class="form-label fw-semibold" for="{{ form.lat_direction.id_for_label }}">
+                    {{ form.lat_direction.label }}
+                  </label>
+                  {{ form.lat_direction }}
+                  {% if form.lat_direction.errors %}
+                    <div class="text-danger small">{{ form.lat_direction.errors|striptags }}</div>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+
+            <!-- Longitude -->
+            <div class="col-12">
+              <div class="row g-3">
+                <div class="col-6 col-md-3">
+                  <label class="form-label fw-semibold" for="{{ form.lon_degrees.id_for_label }}">
+                    {{ form.lon_degrees.label }}
+                  </label>
+                  {{ form.lon_degrees }}
+                  {% if form.lon_degrees.errors %}
+                    <div class="text-danger small">{{ form.lon_degrees.errors|striptags }}</div>
+                  {% endif %}
+                </div>
+
+                <div class="col-6 col-md-3">
+                  <label class="form-label fw-semibold" for="{{ form.lon_minutes.id_for_label }}">
+                    {{ form.lon_minutes.label }}
+                  </label>
+                  {{ form.lon_minutes }}
+                  {% if form.lon_minutes.errors %}
+                    <div class="text-danger small">{{ form.lon_minutes.errors|striptags }}</div>
+                  {% endif %}
+                </div>
+
+                <div class="col-6 col-md-3">
+                  <label class="form-label fw-semibold" for="{{ form.lon_seconds.id_for_label }}">
+                    {{ form.lon_seconds.label }}
+                  </label>
+                  {{ form.lon_seconds }}
+                  {% if form.lon_seconds.errors %}
+                    <div class="text-danger small">{{ form.lon_seconds.errors|striptags }}</div>
+                  {% endif %}
+                </div>
+
+                <div class="col-6 col-md-3">
+                  <label class="form-label fw-semibold" for="{{ form.lon_direction.id_for_label }}">
+                    {{ form.lon_direction.label }}
+                  </label>
+                  {{ form.lon_direction }}
+                  {% if form.lon_direction.errors %}
+                    <div class="text-danger small">{{ form.lon_direction.errors|striptags }}</div>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+
+            <!-- Radius -->
+            <div class="col-12 col-md-6">
+              <label class="form-label fw-semibold" for="{{ form.radius_nm.id_for_label }}">
+                {{ form.radius_nm.label }}
+              </label>
+              {{ form.radius_nm }}
+              {% if form.radius_nm.help_text %}
+                <div class="form-text">{{ form.radius_nm.help_text }}</div>
+              {% endif %}
+              {% if form.radius_nm.errors %}
+                <div class="text-danger small">{{ form.radius_nm.errors|striptags }}</div>
+              {% endif %}
+            </div>
+
+            <!-- Nearest airport -->
+            <div class="col-12 col-md-6">
+              <label class="form-label fw-semibold" for="{{ form.nearest_airport.id_for_label }}">
+                {{ form.nearest_airport.label }}
+              </label>
+              {{ form.nearest_airport }}
+              {% if form.nearest_airport.help_text %}
+                <div class="form-text">{{ form.nearest_airport.help_text }}</div>
+              {% endif %}
+              {% if form.nearest_airport.errors %}
+                <div class="text-danger small">{{ form.nearest_airport.errors|striptags }}</div>
+              {% endif %}
+            </div>
+
+            <!-- Airspace class -->
+            <div class="col-12 col-md-6">
+              <label class="form-label fw-semibold" for="{{ form.airspace_class.id_for_label }}">
+                {{ form.airspace_class.label }}
+              </label>
+              {{ form.airspace_class }}
+              {% if form.airspace_class.help_text %}
+                <div class="form-text">{{ form.airspace_class.help_text }}</div>
+              {% endif %}
+              {% if form.airspace_class.errors %}
+                <div class="text-danger small">{{ form.airspace_class.errors|striptags }}</div>
+              {% endif %}
+            </div>
+
+          </div>
+
+        {# ===================================================== #}
+        {# STEP 3 – DESCRIPTION & EXISTING WAIVERS              #}
+        {# ===================================================== #}
+
+        {% else %}
+          <div class="row g-3">
+
+            <!-- Mission details intro -->
+            <div class="col-12 col-lg-10 mx-auto">
+              <h5 class="text-primary fw-semibold mb-1">Mission Details</h5>
+              <p class="small text-muted mb-3">
+                Use these fields to describe the purpose of the operation, where you will fly,
+                how you will fly, and how the crew and safety controls are set up. You can then
+                generate a concise description for the waiver.
+              </p>
+            </div>
+
+            <!-- Purpose -->
+            <div class="col-12 col-lg-10 mx-auto">
+              <label class="form-label fw-semibold" for="{{ form.mission_purpose.id_for_label }}">
+                Mission purpose
+              </label>
+              {{ form.mission_purpose }}
+              {% if form.mission_purpose.help_text %}
+                <div class="form-text">{{ form.mission_purpose.help_text }}</div>
+              {% else %}
+                <div class="form-text small">
+                  What the flights support (event coverage, media, inspection, mapping, etc.).
+                </div>
+              {% endif %}
+              {% if form.mission_purpose.errors %}
+                <div class="text-danger small">{{ form.mission_purpose.errors|striptags }}</div>
+              {% endif %}
+            </div>
+
+            <!-- Location / operational area -->
+            <div class="col-12 col-lg-10 mx-auto">
+              <label class="form-label fw-semibold" for="{{ form.operational_area.id_for_label }}">
+                Location & operational area
+              </label>
+              {{ form.operational_area }}
+              {% if form.operational_area.help_text %}
+                <div class="form-text">{{ form.operational_area.help_text }}</div>
+              {% else %}
+                <div class="form-text small">
+                  Venue name, address, coordinates, and how the flight area is bounded (radius, infield zone, etc.).
+                </div>
+              {% endif %}
+              {% if form.operational_area.errors %}
+                <div class="text-danger small">{{ form.operational_area.errors|striptags }}</div>
+              {% endif %}
+            </div>
+
+            <!-- Altitude & flight profile -->
+            <div class="col-12 col-lg-10 mx-auto">
+              <label class="form-label fw-semibold" for="{{ form.altitude_profile.id_for_label }}">
+                Altitude & flight profile
+              </label>
+              {{ form.altitude_profile }}
+              {% if form.altitude_profile.help_text %}
+                <div class="form-text">{{ form.altitude_profile.help_text }}</div>
+              {% else %}
+                <div class="form-text small">
+                  Max AGL, typical flight pattern (hovering, orbits, lateral moves, tracking shots) and approximate duration.
+                </div>
+              {% endif %}
+              {% if form.altitude_profile.errors %}
+                <div class="text-danger small">{{ form.altitude_profile.errors|striptags }}</div>
+              {% endif %}
+            </div>
+
+            <!-- Aircraft & payload -->
+            <div class="col-12 col-lg-10 mx-auto">
+              <label class="form-label fw-semibold" for="{{ form.aircraft_payload.id_for_label }}">
+                Aircraft & payload
+              </label>
+              {{ form.aircraft_payload }}
+              {% if form.aircraft_payload.help_text %}
+                <div class="form-text">{{ form.aircraft_payload.help_text }}</div>
+              {% else %}
+                <div class="form-text small">
+                  Aircraft model, camera/sensor details, and any gimbal/zoom use.
+                </div>
+              {% endif %}
+              {% if form.aircraft_payload.errors %}
+                <div class="text-danger small">{{ form.aircraft_payload.errors|striptags }}</div>
+              {% endif %}
+            </div>
+
+            <!-- Launch / staging area -->
+            <div class="col-12 col-lg-10 mx-auto">
+              <label class="form-label fw-semibold" for="{{ form.launch_staging.id_for_label }}">
+                Launch / staging area
+              </label>
+              {{ form.launch_staging }}
+              {% if form.launch_staging.help_text %}
+                <div class="form-text">{{ form.launch_staging.help_text }}</div>
+              {% else %}
+                <div class="form-text small">
+                  Where you launch/recover, how access is controlled, and separation from the public.
+                </div>
+              {% endif %}
+              {% if form.launch_staging.errors %}
+                <div class="text-danger small">{{ form.launch_staging.errors|striptags }}</div>
+              {% endif %}
+            </div>
+
+            <!-- VLOS & crew -->
+            <div class="col-12 col-lg-10 mx-auto">
+              <label class="form-label fw-semibold" for="{{ form.crew_vlos.id_for_label }}">
+                VLOS & crew setup
+              </label>
+              {{ form.crew_vlos }}
+              {% if form.crew_vlos.help_text %}
+                <div class="form-text">{{ form.crew_vlos.help_text }}</div>
+              {% else %}
+                <div class="form-text small">
+                  RPIC role, where the VO is positioned (co-located or remote vantage point), and how you maintain VLOS.
+                </div>
+              {% endif %}
+              {% if form.crew_vlos.errors %}
+                <div class="text-danger small">{{ form.crew_vlos.errors|striptags }}</div>
+              {% endif %}
+            </div>
+
+            <!-- Safety actions -->
+            <div class="col-12 col-lg-10 mx-auto">
+              <label class="form-label fw-semibold" for="{{ form.safety_actions.id_for_label }}">
+                Safety checks & actions
+              </label>
+              {{ form.safety_actions }}
+              {% if form.safety_actions.help_text %}
+                <div class="form-text">{{ form.safety_actions.help_text }}</div>
+              {% else %}
+                <div class="form-text small">
+                  Pre-flight checks, hazard monitoring, and when/how you will stop or modify operations.
+                </div>
+              {% endif %}
+              {% if form.safety_actions.errors %}
+                <div class="text-danger small">{{ form.safety_actions.errors|striptags }}</div>
+              {% endif %}
+            </div>
+
+            <!-- Generate Description button -->
+            <div class="col-12 col-lg-10 mx-auto">
+              <div class="d-flex justify-content-end mt-2 mb-3">
+                <button
+                  type="submit"
+                  name="generate_description"
+                  value="1"
+                  class="btn btn-outline-primary btn-sm"
+                >
+                  Generate Description
+                </button>
+              </div>
+            </div>
+
+            <!-- Generated Description field -->
+            <div class="col-12 col-lg-10 mx-auto">
+              <label class="form-label fw-semibold" for="{{ form.short_description.id_for_label }}">
+                Description of operations
+              </label>
+              {{ form.short_description }}
+              {% if form.short_description.help_text %}
+                <div class="form-text">{{ form.short_description.help_text }}</div>
+              {% else %}
+                <div class="form-text small">
+                  This is the concise description that will appear in the waiver. You can edit it after it is generated.
+                </div>
+              {% endif %}
+              {% if form.short_description.errors %}
+                <div class="text-danger small">{{ form.short_description.errors|striptags }}</div>
+              {% endif %}
+            </div>
+
+            <hr class="mt-4">
+
+            <!-- Existing waivers -->
+            <div class="col-12 col-lg-10 mx-auto">
+              <label class="form-label fw-semibold" for="{{ form.has_related_waiver.id_for_label }}">
+                {{ form.has_related_waiver.label }}
+              </label>
+              {{ form.has_related_waiver }}
+              {% if form.has_related_waiver.help_text %}
+                <div class="form-text">{{ form.has_related_waiver.help_text }}</div>
+              {% endif %}
+              {% if form.has_related_waiver.errors %}
+                <div class="text-danger small">{{ form.has_related_waiver.errors|striptags }}</div>
+              {% endif %}
+            </div>
+
+            <div class="col-12 col-lg-10 mx-auto">
+              <label class="form-label fw-semibold" for="{{ form.related_waiver_details.id_for_label }}">
+                {{ form.related_waiver_details.label }}
+              </label>
+              {{ form.related_waiver_details }}
+              {% if form.related_waiver_details.help_text %}
+                <div class="form-text">{{ form.related_waiver_details.help_text }}</div>
+              {% else %}
+                <div class="form-text small">
+                  Include waiver number(s), regulations waived, document titles, and expiry dates if applicable.
+                </div>
+              {% endif %}
+              {% if form.related_waiver_details.errors %}
+                <div class="text-danger small">{{ form.related_waiver_details.errors|striptags }}</div>
+              {% endif %}
+            </div>
+
+          </div>
+        {% endif %}
+
+        <!-- Wizard footer buttons -->
+        <div class="d-flex justify-content-between mt-4">
+          <a href="{% url 'airspace:waiver_list' %}" class="btn btn-outline-secondary">
+            Cancel
+          </a>
+          <div>
+            {% if wizard.steps.prev %}
+              <button
+                type="submit"
+                name="wizard_goto_step"
+                value="{{ wizard.steps.prev }}"
+                class="btn btn-secondary me-2"
+              >
+                Back
+              </button>
+            {% endif %}
+            <button type="submit" class="btn btn-primary">
+              {% if wizard.steps.current == wizard.steps.last %}
+                Save Waiver Draft
+              {% else %}
+                Continue
+              {% endif %}
+            </button>
+          </div>
+        </div>
+
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

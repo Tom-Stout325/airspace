@@ -1,0 +1,21 @@
+{% extends 'index.html' %}
+
+{% block title %}AirSpace Dashboard{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-lg-8">
+    <div class="card shadow-sm border-0 rounded-4">
+      <div class="card-body p-4 p-md-5">
+        <p class="text-uppercase small text-secondary fw-semibold mb-2">AirSpace</p>
+        <h1 class="display-6 fw-bold mb-3">Welcome{% if request.user.first_name %}, {{ request.user.first_name }}{% endif %}</h1>
+        <p class="lead text-secondary mb-4">Your account is set up and ready. Next, we can wire pilot profiles and the AirSpace workflow on top of this authentication foundation.</p>
+        <div class="d-flex flex-wrap gap-2">
+          <a href="{% url 'accounts:password_change' %}" class="btn btn-dark">Change password</a>
+          <a href="{% url 'accounts:logout' %}" class="btn btn-outline-secondary">Log out</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

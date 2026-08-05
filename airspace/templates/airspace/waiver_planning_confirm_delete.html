@@ -1,0 +1,22 @@
+{% extends "index.html" %}
+
+{% block content %}
+<div class="container mt-5">
+  <h3 class="text-danger">Delete Waiver Planning Entry</h3>
+
+  <p class="lead">
+    Are you sure you want to delete:
+    <strong>{{ planning.operation_title }}</strong>?
+  </p>
+
+  <form method="POST">
+    {% csrf_token %}
+    <a href="{% url 'airspace:waiver_planning_list' %}" class="btn btn-secondary">
+      Cancel
+    </a>
+    <button type="submit" class="btn btn-danger">
+      Delete Permanently
+    </button>
+  </form>
+</div>
+{% endblock %}

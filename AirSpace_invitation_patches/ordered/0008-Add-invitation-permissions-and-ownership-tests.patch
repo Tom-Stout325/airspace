@@ -1,0 +1,155 @@
+From 333fa634b682fc489d8c521f9c7f51b0cbfab974 Mon Sep 17 00:00:00 2001
+From: PatchBuilder <patch@example.com>
+Date: Wed, 5 Aug 2026 00:26:57 +0000
+Subject: [PATCH 8/8] Add invitation permissions and ownership tests
+
+---
+ accounts/tests.py | 99 ++++++++++++++++++++++++++++++++++++++++++++++-
+ airspace/tests.py | 30 +++++++++++++-
+ 2 files changed, 126 insertions(+), 3 deletions(-)
+
+diff --git a/accounts/tests.py b/accounts/tests.py
+index 7ce503c..eb67c44 100644
+--- a/accounts/tests.py
++++ b/accounts/tests.py
+@@ -1,3 +1,98 @@
+-from django.test import TestCase
++from datetime import timedelta
+ 
+-# Create your tests here.
++from django.contrib.auth import get_user_model
++from django.core import mail
++from django.test import TestCase, override_settings
++from django.urls import reverse
++from django.utils import timezone
++
++from pilot.models import PilotProfile
++
++from .models import EmailDeliveryLog, Invitation
++
++User = get_user_model()
++
++
++@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
++class InvitationFlowTests(TestCase):
++    def setUp(self):
++        self.admin = User.objects.create_user(
++            email="admin@example.com", first_name="Admin", last_name="User", password="test-pass-123", is_staff=True
++        )
++        self.regular_user = User.objects.create_user(
++            email="pilot@example.com", first_name="Pilot", last_name="User", password="test-pass-123"
++        )
++
++    def test_only_staff_can_open_invitation_page(self):
++        self.client.force_login(self.regular_user)
++        response = self.client.get(reverse("accounts:invitation_list"))
++        self.assertEqual(response.status_code, 302)
++
++        self.client.force_login(self.admin)
++        response = self.client.get(reverse("accounts:invitation_list"))
++        self.assertEqual(response.status_code, 200)
++
++    def test_staff_can_send_invitation_and_delivery_is_logged(self):
++        self.client.force_login(self.admin)
++        response = self.client.post(reverse("accounts:invitation_list"), {"email": "newpilot@example.com"})
++        self.assertRedirects(response, reverse("accounts:invitation_list"))
++        invitation = Invitation.objects.get(email="newpilot@example.com")
++        self.assertIsNotNone(invitation.sent_at)
++        self.assertEqual(len(mail.outbox), 1)
++        self.assertContains(mail.outbox[0], invitation.token)
++        self.assertTrue(EmailDeliveryLog.objects.filter(invitation=invitation, status="sent").exists())
++
++    def test_public_registration_is_blocked(self):
++        response = self.client.get(reverse("accounts:register"))
++        self.assertEqual(response.status_code, 403)
++
++    def test_expired_invitation_cannot_register(self):
++        invitation = Invitation.objects.create_for_email(
++            email="expired@example.com", invited_by=self.admin, lifetime=timedelta(seconds=-1)
++        )
++        response = self.client.get(reverse("accounts:invitation_accept", kwargs={"token": invitation.token}))
++        self.assertEqual(response.status_code, 410)
++        self.assertContains(response, "expired", status_code=410)
++
++    def test_invitation_is_single_use_and_creates_profile(self):
++        invitation = Invitation.objects.create_for_email(
++            email="accepted@example.com", invited_by=self.admin, lifetime=timedelta(hours=1)
++        )
++        url = reverse("accounts:invitation_accept", kwargs={"token": invitation.token})
++        response = self.client.post(url, {
++            "email": invitation.email,
++            "first_name": "New",
++            "last_name": "Pilot",
++            "phone": "317-555-0100",
++            "password1": "Strong-test-password-123",
++            "password2": "Strong-test-password-123",
++        })
++        user = User.objects.get(email=invitation.email)
++        self.assertRedirects(response, reverse("accounts:pilot_profile_onboarding"))
++        self.assertTrue(PilotProfile.objects.filter(user=user).exists())
++        invitation.refresh_from_db()
++        self.assertEqual(invitation.status, Invitation.Status.ACCEPTED)
++        self.assertIsNotNone(invitation.accepted_at)
++
++        self.client.logout()
++        response = self.client.get(url)
++        self.assertEqual(response.status_code, 410)
++
++    def test_duplicate_pending_invitation_is_rejected(self):
++        Invitation.objects.create_for_email(
++            email="duplicate@example.com", invited_by=self.admin, lifetime=timedelta(hours=1)
++        )
++        self.client.force_login(self.admin)
++        response = self.client.post(reverse("accounts:invitation_list"), {"email": "duplicate@example.com"})
++        self.assertEqual(response.status_code, 200)
++        self.assertContains(response, "pending invitation already exists")
++
++    def test_staff_can_revoke_pending_invitation(self):
++        invitation = Invitation.objects.create_for_email(
++            email="revoke@example.com", invited_by=self.admin, lifetime=timedelta(hours=1)
++        )
++        self.client.force_login(self.admin)
++        response = self.client.post(reverse("accounts:invitation_revoke", kwargs={"pk": invitation.pk}))
++        self.assertRedirects(response, reverse("accounts:invitation_list"))
++        invitation.refresh_from_db()
++        self.assertEqual(invitation.status, Invitation.Status.REVOKED)
+diff --git a/airspace/tests.py b/airspace/tests.py
+index 7ce503c..2335fee 100644
+--- a/airspace/tests.py
++++ b/airspace/tests.py
+@@ -1,3 +1,31 @@
++from datetime import date
++
++from django.contrib.auth import get_user_model
+ from django.test import TestCase
++from django.urls import reverse
++
++from .models import WaiverPlanning
++
++User = get_user_model()
++
++
++class WaiverOwnershipTests(TestCase):
++    def setUp(self):
++        self.owner = User.objects.create_user(email="owner@example.com", first_name="Owner", last_name="Pilot", password="pass-12345")
++        self.other = User.objects.create_user(email="other@example.com", first_name="Other", last_name="Pilot", password="pass-12345")
++        self.planning = WaiverPlanning.objects.create(
++            user=self.owner,
++            operation_title="Owner waiver",
++            start_date=date.today(),
++        )
++
++    def test_user_cannot_open_another_users_waiver(self):
++        self.client.force_login(self.other)
++        response = self.client.get(reverse("airspace:waiver_application_overview", kwargs={"planning_id": self.planning.pk}))
++        self.assertEqual(response.status_code, 404)
+ 
+-# Create your tests here.
++    def test_user_cannot_delete_another_users_waiver(self):
++        self.client.force_login(self.other)
++        response = self.client.post(reverse("airspace:waiver_planning_delete", kwargs={"pk": self.planning.pk}))
++        self.assertEqual(response.status_code, 404)
++        self.assertTrue(WaiverPlanning.objects.filter(pk=self.planning.pk).exists())
+-- 
+2.47.3
+

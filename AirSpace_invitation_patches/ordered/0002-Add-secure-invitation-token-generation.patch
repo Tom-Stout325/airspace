@@ -1,0 +1,51 @@
+From b7612253cf2c729900e0ae974b8ddc45d10b04e3 Mon Sep 17 00:00:00 2001
+From: PatchBuilder <patch@example.com>
+Date: Wed, 5 Aug 2026 00:25:09 +0000
+Subject: [PATCH 2/8] Add secure invitation token generation
+
+---
+ accounts/models.py | 14 ++++++++++++++
+ 1 file changed, 14 insertions(+)
+
+diff --git a/accounts/models.py b/accounts/models.py
+index 5d584e7..c618b76 100644
+--- a/accounts/models.py
++++ b/accounts/models.py
+@@ -3,6 +3,7 @@ from django.contrib.auth.models import AbstractUser
+ from django.conf import settings
+ from django.db import models
+ from django.utils import timezone
++import secrets
+ 
+ 
+ class UserManager(BaseUserManager):
+@@ -57,6 +58,17 @@ class User(AbstractUser):
+         return full_name or self.email
+ 
+ 
++class InvitationManager(models.Manager):
++    def create_for_email(self, *, email, invited_by, lifetime):
++        normalized = User.objects.normalize_email(email).lower()
++        return self.create(
++            email=normalized,
++            invited_by=invited_by,
++            token=secrets.token_urlsafe(32),
++            expires_at=timezone.now() + lifetime,
++        )
++
++
+ class Invitation(models.Model):
+     class Status(models.TextChoices):
+         PENDING = "pending", "Pending"
+@@ -77,6 +89,8 @@ class Invitation(models.Model):
+     created_at = models.DateTimeField(auto_now_add=True)
+     updated_at = models.DateTimeField(auto_now=True)
+ 
++    objects = InvitationManager()
++
+     class Meta:
+         ordering = ["-created_at"]
+         constraints = [
+-- 
+2.47.3
+

@@ -1,0 +1,155 @@
+{% extends "index.html" %}
+
+{% block title %}Waiver Planning{% endblock %}
+
+{% block content %}
+<div class="container my-4 my-md-5" style="max-width: 1100px;">
+
+  <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-3">
+    <div>
+      <h1 class="h5 mb-1">Waiver Planning</h1>
+      <p class="text-muted mb-0">
+        Review and continue draft waiver planning entries.
+      </p>
+    </div>
+    <div class="mt-2 mt-md-0">
+      <a href="{% url 'airspace:waiver_planning_new' %}" class="btn btn-primary btn-sm">
+        + New Waiver Planning
+      </a>
+    </div>
+  </div>
+
+  {% if planning_list %}
+    <!-- Desktop/tablet: table view -->
+    <div class="d-none d-md-block">
+      <div class="card shadow-sm">
+        <div class="card-body p-0">
+          <table class="table mb-0 align-middle">
+            <thead class="table-light">
+              <tr>
+                <th scope="col">Operation</th>
+                <th scope="col">Dates</th>
+                <th scope="col">Location</th>
+                <th scope="col">Created</th>
+                <th scope="col" class="text-end">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for planning in planning_list %}
+                <tr>
+                  <td>
+                    <div class="fw-semibold">{{ planning.operation_title }}</div>
+                    <div class="small text-muted">
+                      {{ planning.venue_name|default:"" }}
+                    </div>
+                  </td>
+                  <td class="small">
+                    {{ planning.start_date|date:"m/d/Y" }}
+                    {% if planning.end_date and planning.end_date != planning.start_date %}
+                      – {{ planning.end_date|date:"m/d/Y" }}
+                    {% endif %}
+                  </td>
+                  <td class="small">
+                    {{ planning.location_city|default:"" }},
+                    {{ planning.location_state|default:"" }}
+                  </td>
+                  <td class="small text-muted">
+                    {{ planning.created_at|date:"m/d/Y" }}
+                  </td>
+                  <td class="text-end">
+                  <td class="text-end">
+                    <a href="{% url 'airspace:waiver_planning_new' %}?planning_id={{ planning.id }}"
+                      class="btn btn-outline-secondary btn-sm">
+                      Edit
+                    </a>
+                    <a href="{% url 'airspace:waiver_planning_delete' pk=planning.id %}"
+                      class="btn btn-outline-danger btn-sm">
+                      Delete Waiver
+                    </a>
+                    <a href="{% url 'airspace:waiver_application_overview' planning_id=planning.id %}"
+                      class="btn btn-primary btn-sm">
+                      Waiver Form
+                    </a>
+                  </td>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {% if is_paginated %}
+        <nav aria-label="Page navigation" class="mt-3">
+          <ul class="pagination pagination-sm justify-content-center mb-0">
+            {% if page_obj.has_previous %}
+              <li class="page-item">
+                <a class="page-item page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a>
+              </li>
+            {% endif %}
+            <li class="page-item disabled">
+              <span class="page-link">
+                Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+              </span>
+            </li>
+            {% if page_obj.has_next %}
+              <li class="page-item">
+                <a class="page-item page-link" href="?page={{ page_obj.next_page_number }}">Next</a>
+              </li>
+            {% endif %}
+          </ul>
+        </nav>
+      {% endif %}
+    </div>
+
+    <!-- Mobile: card list -->
+    <div class="d-md-none">
+      {% for planning in planning_list %}
+        <div class="card shadow-sm mb-3">
+          <div class="card-body">
+            <h2 class="h6 mb-1">{{ planning.operation_title }}</h2>
+            <p class="small text-muted mb-2">
+              {{ planning.venue_name|default:"" }}<br>
+              {{ planning.location_city|default:"" }},
+              {{ planning.location_state|default:"" }}
+            </p>
+            <p class="small mb-2">
+              <strong>Dates:</strong>
+              {{ planning.start_date|date:"m/d/Y" }}
+              {% if planning.end_date and planning.end_date != planning.start_date %}
+                – {{ planning.end_date|date:"m/d/Y" }}
+              {% endif %}
+            </p>
+
+
+
+            <div class="d-flex justify-content-between mt-2">
+              <a href="{% url 'airspace:waiver_planning_new' %}?planning_id={{ planning.id }}"
+                class="btn btn-outline-secondary btn-sm">
+                Edit
+              </a>
+
+              <a href="{% url 'airspace:waiver_planning_delete' pk=planning.id %}"
+                class="btn btn-outline-danger btn-sm">
+                Delete Waiver
+              </a>
+
+              <a href="{% url 'airspace:waiver_application_overview' planning_id=planning.id %}"
+                class="btn btn-primary btn-sm">
+                Waiver Form
+              </a>
+            </div>
+
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+
+  {% else %}
+    <div class="alert alert-info">
+      You don’t have any waiver planning entries yet.
+      <a href="{% url 'airspace:waiver_planning_new' %}">Create your first planning form.</a>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

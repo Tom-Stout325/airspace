@@ -1,0 +1,269 @@
+{% load static %}
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Waiver Readiness Checklist</title>
+  <style>
+    @page { size: Letter; margin: 0.5in; }
+
+    body {
+      font-size: 10px;
+      color: #111;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 10px;
+    }
+    .header h1 {
+      font-size: 16px;
+      margin: 0;
+      letter-spacing: .2px;
+    }
+    .header .sub {
+      font-size: 9px;
+      color: #555;
+      margin-top: 3px;
+    }
+
+    .meta {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin: 8px 0 10px;
+      font-size: 9px;
+      color: #333;
+    }
+    .meta .box {
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      padding: 6px 8px;
+    }
+    .meta .label { color: #666; font-size: 8px; margin-bottom: 2px; }
+    .meta .line { border-bottom: 1px solid #ccc; height: 12px; }
+
+    /* Two columns for dense packing */
+    .columns {
+      column-count: 2;
+      column-gap: 16px;
+    }
+
+    .section {
+      break-inside: avoid;
+      page-break-inside: avoid;
+      margin: 0 0 10px 0;
+      padding: 0;
+    }
+
+    .section-title {
+      font-size: 10px;
+      font-weight: 700;
+      color: #0b3d91;
+      border-bottom: 1px solid #d7e3ff;
+      padding-bottom: 3px;
+      margin: 0 0 6px 0;
+    }
+
+    ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    li.item {
+      display: grid;
+      grid-template-columns: 12px 1fr;
+      gap: 6px;
+      align-items: start;
+      margin: 0 0 4px 0;
+    }
+
+    .cb {
+      width: 10px;
+      height: 10px;
+      border: 1.2px solid #333;
+      border-radius: 2px;
+      margin-top: 1px;
+    }
+
+    .field {
+      font-size: 9px;
+      line-height: 1.2;
+      word-break: break-word;
+    }
+
+    .notes {
+      margin-top: 10px;
+      border-top: 1px dashed #ccc;
+      padding-top: 8px;
+      font-size: 9px;
+      color: #444;
+    }
+    .notes .line { border-bottom: 1px solid #ddd; height: 14px; margin: 4px 0; }
+  </style>
+</head>
+
+<body>
+  <div class="header">
+    <h1>FAA Waiver Readiness Checklist</h1>
+    <div class="sub">Collect the items below before starting the waiver workflow.</div>
+  </div>
+
+  <div class="meta">
+    <div class="box">
+      <div class="label">Operation / Event</div>
+      <div class="line"></div>
+    </div>
+    <div class="box">
+      <div class="label">Prepared By / Date</div>
+      <div class="line"></div>
+    </div>
+  </div>
+
+  <div class="columns">
+
+    <div class="section">
+      <div class="section-title">Operation Basics</div>
+      <ul>
+        <li class="item"><span class="cb"></span><span class="field">Operation Title — Be specific, this avoids confusion for later operations</span></li>
+        <li class="item"><span class="cb"></span><span class="field">Start Date</span></li>
+        <li class="item"><span class="cb"></span><span class="field">End Date — (if multi-day)</span></li>
+        <li class="item"><span class="cb"></span><span class="field">Timeframe — Planned time of day - This is a dropdown list on the form</span></li>
+        <li class="item"><span class="cb"></span><span class="field">Frequency — How often operations occur if multi-day, this is a dropdown list on the form</span></li>
+        <li class="item"><span class="cb"></span><span class="field">Local time zone - Dropdown list</span></li>
+        <li class="item"><span class="cb"></span><span class="field">Proposed AGL — Maximum altitude AGL you are requesting</span></li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Aircraft</div>
+      <ul>
+        <li class="item"><span class="cb"></span><span class="field">Aircraft — Primary aircraft (Draws from your Equipment List)</span></li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Pilot</div>
+      <ul>
+        <li class="item"><span class="cb"></span><span class="field">Pilot profile - Selected from your profile in FlightPlan</span></li>
+        <li class="item"><span class="cb"></span><span class="field">Pilot Certificate — Pilot 107 certificate number - Required</span></li>
+        <li class="item"><span class="cb"></span><span class="field">Total flight hours - Draws from your profile</span></li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Existing Waivers (If you plan to use an existing waiver for OOP/OOMV)</div>
+      <ul>
+        <li class="item"><span class="cb"></span><span class="field">OOP Waiver - Ops over people (§107.39) if applicable</span></li>
+        <li class="item"><span class="cb"></span><span class="field">OOP Waiver Document — §107.39 waiver document from your Documents</span></li>
+        <li class="item"><span class="cb"></span><span class="field">§107.39 waiver number</span></li>
+        <li class="item"><span class="cb"></span><span class="field">Ops over moving vehicles</span></li>
+        <li class="item"><span class="cb"></span><span class="field">Moving vehicle waiver document</span></li>
+        <li class="item"><span class="cb"></span><span class="field">Moving vehicle waiver number</span></li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Purpose of Operations</div>
+      <ul>
+        <li class="item"><span class="cb"></span><span class="field">Purpose of Operations — Operational purpose(s)</span></li>
+        <li class="item"><span class="cb"></span><span class="field">purpose_operations_details — Purpose explanation</span></li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Venue & Location</div>
+      <ul>
+        <li class="item"><span class="cb"></span><span class="field">venue_name — Venue name</span></li>
+        <li class="item"><span class="cb"></span><span class="field">street_address — Street address</span></li>
+        <li class="item"><span class="cb"></span><span class="field">location_city — City</span></li>
+        <li class="item"><span class="cb"></span><span class="field">location_state — State</span></li>
+        <li class="item"><span class="cb"></span><span class="field">zip_code — ZIP code</span></li>
+        <li class="item"><span class="cb"></span><span class="field">location_latitude — Latitude</span></li>
+        <li class="item"><span class="cb"></span><span class="field">location_longitude — Longitude</span></li>
+        <li class="item"><span class="cb"></span><span class="field">airspace_class — Airspace class</span></li>
+        <li class="item"><span class="cb"></span><span class="field">location_radius — Operational radius</span></li>
+        <li class="item"><span class="cb"></span><span class="field">nearest_airport — Nearest airport</span></li>
+        <li class="item"><span class="cb"></span><span class="field">nearest_airport_ref — Nearest airport reference</span></li>
+        <li class="item"><span class="cb"></span><span class="field">distance_to_airport_nm — Distance to airport (NM)</span></li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Launch & Safety</div>
+      <ul>
+        <li class="item"><span class="cb"></span><span class="field">launch_location — Launch / recovery location</span></li>
+        <li class="item"><span class="cb"></span><span class="field">uses_drone_detection — Drone detection in use</span></li>
+        <li class="item"><span class="cb"></span><span class="field">uses_flight_tracking — Flight tracking in use</span></li>
+        <li class="item"><span class="cb"></span><span class="field">has_visual_observer — Visual observer used</span></li>
+        <li class="item"><span class="cb"></span><span class="field">insurance_provider — Insurance provider</span></li>
+        <li class="item"><span class="cb"></span><span class="field">insurance_coverage_limit — Coverage limit</span></li>
+        <li class="item"><span class="cb"></span><span class="field">safety_features_notes — Safety features summary</span></li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Operational Profile</div>
+      <ul>
+        <li class="item"><span class="cb"></span><span class="field">aircraft_count — Number of aircraft</span></li>
+        <li class="item"><span class="cb"></span><span class="field">flight_duration — Typical flight duration</span></li>
+        <li class="item"><span class="cb"></span><span class="field">flights_per_day — Flights per day</span></li>
+        <li class="item"><span class="cb"></span><span class="field">ground_environment — Ground environment type</span></li>
+        <li class="item"><span class="cb"></span><span class="field">ground_environment_other — Other ground environment</span></li>
+        <li class="item"><span class="cb"></span><span class="field">estimated_crowd_size — Estimated crowd size</span></li>
+        <li class="item"><span class="cb"></span><span class="field">prepared_procedures — Prepared procedures</span></li>
+        <li class="item"><span class="cb"></span><span class="field">operation_area_type — Area definition type</span></li>
+        <li class="item"><span class="cb"></span><span class="field">containment_method — Containment method</span></li>
+        <li class="item"><span class="cb"></span><span class="field">containment_notes — Containment notes</span></li>
+        <li class="item"><span class="cb"></span><span class="field">corridor_length_ft — Corridor length (ft)</span></li>
+        <li class="item"><span class="cb"></span><span class="field">corridor_width_ft — Corridor width (ft)</span></li>
+        <li class="item"><span class="cb"></span><span class="field">max_groundspeed_mph — Max groundspeed (mph)</span></li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Emergency / Lost Link</div>
+      <ul>
+        <li class="item"><span class="cb"></span><span class="field">lost_link_behavior — Lost link behavior</span></li>
+        <li class="item"><span class="cb"></span><span class="field">rth_altitude_ft_agl — RTH altitude AGL</span></li>
+        <li class="item"><span class="cb"></span><span class="field">lost_link_actions — Lost link actions</span></li>
+        <li class="item"><span class="cb"></span><span class="field">flyaway_actions — Flyaway actions</span></li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <div class="section-title">ATC / Communications</div>
+      <ul>
+        <li class="item"><span class="cb"></span><span class="field">atc_facility_name — ATC facility name</span></li>
+        <li class="item"><span class="cb"></span><span class="field">atc_coordination_method — Coordination method</span></li>
+        <li class="item"><span class="cb"></span><span class="field">atc_phone — ATC phone number</span></li>
+        <li class="item"><span class="cb"></span><span class="field">atc_frequency — ATC radio frequency</span></li>
+        <li class="item"><span class="cb"></span><span class="field">atc_checkin_procedure — Check-in procedure</span></li>
+        <li class="item"><span class="cb"></span><span class="field">atc_deviation_triggers — Deviation triggers</span></li>
+
+      </ul>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Weather & Crew</div>
+      <ul>
+        <li class="item"><span class="cb"></span><span class="field">max_wind_mph — Max allowable wind</span></li>
+        <li class="item"><span class="cb"></span><span class="field">min_visibility_sm — Minimum visibility</span></li>
+        <li class="item"><span class="cb"></span><span class="field">weather_go_nogo — Weather go/no-go criteria</span></li>
+        <li class="item"><span class="cb"></span><span class="field">crew_count — Crew size</span></li>
+        <li class="item"><span class="cb"></span><span class="field">crew_briefing_procedure — Crew briefing process</span></li>
+        <li class="item"><span class="cb"></span><span class="field">radio_discipline — Radio discipline</span></li>
+      </ul>
+    </div>
+
+  </div>
+
+  <div class="notes">
+    <div><strong>Notes / Missing Items:</strong></div>
+    <div class="line"></div>
+    <div class="line"></div>
+    <div class="line"></div>
+  </div>
+</body>
+</html>

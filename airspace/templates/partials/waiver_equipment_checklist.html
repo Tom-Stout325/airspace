@@ -1,0 +1,285 @@
+{% extends "index.html" %}
+
+{% block title %}Waiver Equipment Checklist{% endblock %}
+
+{% block extra_css %}
+<style>
+  .equipment-checklist-container {
+    max-width: 900px;
+  }
+
+  .checklist-section-title {
+    font-size: 0.9rem;
+    letter-spacing: 0.05em;
+  }
+
+  .checklist-item label {
+    cursor: pointer;
+  }
+
+  @media print {
+    .no-print {
+      display: none !important;
+    }
+    body {
+      background: #ffffff !important;
+    }
+    .card {
+      border: none;
+      box-shadow: none;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container my-4 my-md-5 equipment-checklist-container">
+  <div class="d-flex justify-content-between align-items-center mb-3 no-print">
+    <div>
+      <h1 class="h4 mb-1">Required Equipment Checklist</h1>
+      <p class="text-muted mb-0">
+        Airspace – Waiver / Operations Planning Support
+      </p>
+    </div>
+    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print();">
+      <i class="fa-solid fa-print me-1"></i> Print
+    </button>
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <div class="mb-3">
+        <h2 class="h6 text-uppercase text-muted checklist-section-title mb-2">Operation Details</h2>
+        <div class="row g-2 mb-2">
+          <div class="col-12 col-md-6">
+            <label class="form-label small mb-0">Operation / Event Name</label>
+            <div class="border rounded-3 p-2" style="min-height: 2.2rem;"></div>
+          </div>
+          <div class="col-6 col-md-3">
+            <label class="form-label small mb-0">Location</label>
+            <div class="border rounded-3 p-2" style="min-height: 2.2rem;"></div>
+          </div>
+          <div class="col-6 col-md-3">
+            <label class="form-label small mb-0">Date</label>
+            <div class="border rounded-3 p-2" style="min-height: 2.2rem;"></div>
+          </div>
+        </div>
+      </div>
+
+      <hr>
+
+      <!-- Safety & Medical -->
+      <div class="mb-4">
+        <h2 class="h6 text-uppercase text-muted checklist-section-title mb-2">
+          Safety &amp; Medical
+        </h2>
+        <div class="row g-2">
+          <div class="col-12 col-sm-6 col-lg-4 checklist-item">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="item_first_aid">
+              <label class="form-check-label" for="item_first_aid">
+                First Aid / Trauma Kit
+              </label>
+            </div>
+          </div>
+          <div class="col-12 col-sm-6 col-lg-4 checklist-item">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="item_fire_extinguisher">
+              <label class="form-check-label" for="item_fire_extinguisher">
+                Fire Extinguisher
+              </label>
+            </div>
+          </div>
+          <div class="col-12 col-sm-6 col-lg-4 checklist-item">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="item_safety_vests">
+              <label class="form-check-label" for="item_safety_vests">
+                High-visibility Safety Vests
+              </label>
+            </div>
+          </div>
+          <div class="col-12 col-sm-6 col-lg-4 checklist-item">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="item_eye_protection">
+              <label class="form-check-label" for="item_eye_protection">
+                Eye Protection
+              </label>
+            </div>
+          </div>
+          <div class="col-12 col-sm-6 col-lg-4 checklist-item">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="item_hearing_protection">
+              <label class="form-check-label" for="item_hearing_protection">
+                Hearing Protection
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Communications -->
+      <div class="mb-4">
+        <h2 class="h6 text-uppercase text-muted checklist-section-title mb-2">
+          Communications
+        </h2>
+        <div class="row g-2">
+          <div class="col-12 col-sm-6 col-lg-4 checklist-item">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="item_cell_phone">
+              <label class="form-check-label" for="item_cell_phone">
+                Cell Phone (charged)
+              </label>
+            </div>
+          </div>
+          <div class="col-12 col-sm-6 col-lg-4 checklist-item">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="item_radios">
+              <label class="form-check-label" for="item_radios">
+                Handheld Radios (crew comms)
+              </label>
+            </div>
+          </div>
+          <div class="col-12 col-sm-6 col-lg-4 checklist-item">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="item_aviation_radio">
+              <label class="form-check-label" for="item_aviation_radio">
+                Aviation Radio (if used)
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Drone Operations Gear -->
+      <div class="mb-4">
+        <h2 class="h6 text-uppercase text-muted checklist-section-title mb-2">
+          Drone Operations Gear
+        </h2>
+        <div class="row g-2">
+          <div class="col-12 col-sm-6 col-lg-4 checklist-item">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="item_spare_batteries">
+              <label class="form-check-label" for="item_spare_batteries">
+                Spare Batteries (charged)
+              </label>
+            </div>
+          </div>
+          <div class="col-12 col-sm-6 col-lg-4 checklist-item">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="item_spare_props">
+              <label class="form-check-label" for="item_spare_props">
+                Spare Propellers
+              </label>
+            </div>
+          </div>
+          <div class="col-12 col-sm-6 col-lg-4 checklist-item">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="item_tool_kit">
+              <label class="form-check-label" for="item_tool_kit">
+                Tool / Repair Kit
+              </label>
+            </div>
+          </div>
+          <div class="col-12 col-sm-6 col-lg-4 checklist-item">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="item_landing_pad">
+              <label class="form-check-label" for="item_landing_pad">
+                Landing Pad
+              </label>
+            </div>
+          </div>
+          <div class="col-12 col-sm-6 col-lg-4 checklist-item">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="item_power_bank">
+              <label class="form-check-label" for="item_power_bank">
+                Power Bank / Portable Charger
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Site Control -->
+      <div class="mb-4">
+        <h2 class="h6 text-uppercase text-muted checklist-section-title mb-2">
+          Site Control
+        </h2>
+        <div class="row g-2">
+          <div class="col-12 col-sm-6 col-lg-4 checklist-item">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="item_cones">
+              <label class="form-check-label" for="item_cones">
+                Cones / Barricades
+              </label>
+            </div>
+          </div>
+          <div class="col-12 col-sm-6 col-lg-4 checklist-item">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="item_caution_tape">
+              <label class="form-check-label" for="item_caution_tape">
+                Caution Tape / Rope
+              </label>
+            </div>
+          </div>
+          <div class="col-12 col-sm-6 col-lg-4 checklist-item">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="item_drone_signage">
+              <label class="form-check-label" for="item_drone_signage">
+                “Drone Operations in Progress” Signage
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Documentation -->
+      <div class="mb-2">
+        <h2 class="h6 text-uppercase text-muted checklist-section-title mb-2">
+          Documentation
+        </h2>
+        <div class="row g-2">
+          <div class="col-12 col-sm-6 col-lg-4 checklist-item">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="item_waiver_docs">
+              <label class="form-check-label" for="item_waiver_docs">
+                Printed Waiver / Authorization
+              </label>
+            </div>
+          </div>
+          <div class="col-12 col-sm-6 col-lg-4 checklist-item">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="item_insurance">
+              <label class="form-check-label" for="item_insurance">
+                Insurance Certificate
+              </label>
+            </div>
+          </div>
+          <div class="col-12 col-sm-6 col-lg-4 checklist-item">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="item_pilot_cert_copy">
+              <label class="form-check-label" for="item_pilot_cert_copy">
+                Pilot Certificate Copy
+              </label>
+            </div>
+          </div>
+          <div class="col-12 col-sm-6 col-lg-4 checklist-item">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="item_emergency_contacts">
+              <label class="form-check-label" for="item_emergency_contacts">
+                Emergency Contacts List
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <hr class="mt-4">
+
+      <p class="small text-muted mb-0">
+        This checklist is a planning aid and does not replace your FAA-approved
+        waiver, operations manual, or applicable regulations.
+      </p>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,54 @@
+{% extends "index.html" %}
+
+{% block title %}CONOPS – {{ waiver.operation_title }}{% endblock %}
+
+{% block content %}
+<div class="container my-4" style="max-width: 900px;">
+
+  <a href="{% url 'airspace:waiver_form' %}" class="btn btn-link btn-sm px-0 mb-3">
+    ← Start a new waiver
+  </a>
+
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h1 class="h4 mb-1">Concept of Operations (CONOPS)</h1>
+      <p class="text-muted mb-0 small">
+        Operation: <strong>{{ waiver.operation_title }}</strong><br>
+        Location: {{ waiver.proposed_location }}<br>
+        Airspace: {{ waiver.get_airspace_class_display }} near {{ waiver.nearest_airport }}<br>
+        Dates: {{ waiver.start_date }} – {{ waiver.end_date }}
+      </p>
+    </div>
+
+    <form method="post" class="ms-3">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-primary btn-sm">
+        {% if waiver.conops_text %}Regenerate{% else %}Generate{% endif %} CONOPS
+      </button>
+    </form>
+  </div>
+
+  {% if waiver.conops_generated_at %}
+    <p class="small text-muted mb-3">
+      Last generated: {{ waiver.conops_generated_at|date:"M j, Y, g:i a" }}
+    </p>
+  {% endif %}
+
+  {% if waiver.conops_text %}
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <pre class="mb-0" style="white-space: pre-wrap; font-family: inherit;">
+{{ waiver.conops_text }}
+        </pre>
+      </div>
+    </div>
+  {% else %}
+    <div class="alert alert-info mt-3">
+      No CONOPS has been generated yet for this waiver. Click the
+      <strong>{% if waiver.conops_text %}Regenerate{% else %}Generate{% endif %} CONOPS</strong>
+      button above to create one based on the saved waiver details.
+    </div>
+  {% endif %}
+
+</div>
+{% endblock %}

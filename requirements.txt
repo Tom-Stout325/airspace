@@ -1,0 +1,14 @@
+Django==5.2.11
+crispy-bootstrap5==2025.4
+dj-database-url==2.3.0
+django-autocomplete-light==3.12.1
+django-crispy-forms==2.4
+django-environ==0.12.0
+django-storages==1.14.6
+boto3==1.37.37
+gunicorn==23.0.0
+openai==2.9.0
+Pillow==11.1.0
+psycopg2-binary==2.9.10
+weasyprint==59.0
+whitenoise==6.9.0

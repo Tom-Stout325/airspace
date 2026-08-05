@@ -1,0 +1,7 @@
+{% extends 'accounts/registration/_auth_base.html' %}
+{% block title %}Signed out{% endblock %}
+{% block heading %}Signed out{% endblock %}
+{% block auth_content %}
+<p class="text-secondary mb-3">You have been logged out of AirSpace.</p>
+<a href="{% url 'accounts:login' %}" class="btn btn-dark">Sign in again</a>
+{% endblock %}

@@ -1,0 +1,507 @@
+{% extends "index.html" %}
+
+{% block title %}FAA Airspace Waiver{% endblock %}
+
+{% block content %}
+<style>
+  /* Use the wrapper instead of body to avoid fighting global CSS */
+  .page-wrapper {
+    min-height: 100vh;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 2rem 1rem;
+     font-family: "Montserrat", -apple-system, BlinkMacSystemFont, "Segoe UI",
+                 Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", sans-serif;
+  }
+
+  .content-card {
+    width: 100%;
+    max-width: 960px;
+    border-radius: 1rem;
+    box-shadow: 0 20px 45px rgba(15, 23, 42, 0.85);
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    overflow: hidden;
+  }
+
+.card-header-gradient {
+  background: linear-gradient(
+    135deg,
+    #6bb7ff 0%,
+    #4a8fd4 40%,
+    #2d5c8c 100%
+  );
+  border-bottom: 1px solid rgba(0,0,0,0.05);
+  color: #ffffff;
+}
+
+.helper-pill {
+  font-size: 0.75rem;
+  background: rgba(255,255,255,0.2);
+  backdrop-filter: blur(4px);
+  color: #ffffff;
+  border-radius: 999px;
+  padding: 0.2rem 0.8rem;
+}
+  .badge-chip {
+    font-size: 0.75rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    border-radius: 9999px;
+  }
+
+  .section-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 0.75rem;
+    color: #2c68a7;
+
+  }
+
+  .section-title {
+    margin-bottom: 0.25rem;
+    font-weight: 600;
+
+  }
+
+  .section-subtitle {
+    font-size: 0.875rem;
+  }
+
+  .list-bullet {
+    margin-bottom: 0.25rem;
+  }
+
+  .helper-pill {
+    font-size: 0.75rem;
+    border-radius: 9999px;
+    padding: 0.1rem 0.7rem;
+  }
+
+
+  .accordion-item {
+    border-color: rgba(148, 163, 184, 0.35);
+  }
+
+  .accordion-body {
+    background-color: #72adf6ff;
+  }
+
+  a.link-light-blue {
+    color: #7dd3fc;
+    text-decoration: none;
+  }
+  a.link-light-blue:hover {
+    color: #e0f2fe;
+    text-decoration: underline;
+  }
+
+  @media (max-width: 576px) {
+    .page-wrapper {
+      padding: 1.25rem 0.75rem;
+    }
+  }
+</style>
+
+<div class="page-wrapper">
+  <div class="content-card">
+    <div class="card-header-gradient p-4 p-md-5">
+          <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+            <div>
+              <div class="badge bg-dark-subtle text-dark badge-chip mb-2">
+                FAA Airspace Waiver Helper
+              </div>
+              <h1 class="h3 mb-2">Completing Your Airspace Waiver Application</h1>
+              <p class="mb-0 text-light">
+                Use this guide to understand information you will need to have available to complete your FAA Waiver Application.
+              </p>
+              
+            </div>
+           
+          </div>
+
+          <div class="d-flex flex-wrap gap-2 small text-light">
+            <div><span class="text-uppercase fw-semibold">Tip:</span> Keep this open while you fill out your application.</div> 
+             <div>Click the down arrow to expand the section.</div>
+          </div>
+           <div class="mt-3 mt-md-0 text-md-end">
+              <span class="badge bg-warning text-dark helper-pill me-2">UAS Operators</span>
+              <span class="badge bg-warning text-dark helper-pill">Part 107</span>
+            </div>
+        </div>
+
+        <!-- Body -->
+        <div class="p-3 p-md-4 p-lg-5">
+
+          <div class="mb-4 d-flex align-items-center">
+            <div class="section-icon">
+              <span class="fw-bold">1</span>
+            </div>
+            <div>
+              <div class="section-title">Waiver Dates & Timeframe</div>
+              <div class="section-subtitle">Define when your waiver starts, ends, and the hours you’ll operate.</div>
+            </div>
+          </div>
+
+          <div class="accordion mb-4" id="waiverDatesAccordion">
+            <!-- Start Date -->
+            <div class="accordion-item">
+              <h2 class="accordion-header" id="headingStartDate">
+                <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseStartDate" aria-expanded="true" aria-controls="collapseStartDate">
+                  Start Date
+                </button>
+              </h2>
+              <div id="collapseStartDate" class="accordion-collapse collapse" aria-labelledby="headingStartDate" data-bs-parent="#waiverDatesAccordion">
+                <div class="accordion-body">
+                  <p class="mb-2">
+                    Enter the first day you need the waiver authority to be active.
+                  </p>
+                  <ul class="mb-0">
+                    <li class="list-bullet">Use the actual calendar date.</li>
+                    <li class="list-bullet">For recurring events, choose the earliest day you might operate.</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            <!-- End Date -->
+            <div class="accordion-item">
+              <h2 class="accordion-header" id="headingEndDate">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseEndDate" aria-expanded="false" aria-controls="collapseEndDate">
+                  End Date
+                </button>
+              </h2>
+              <div id="collapseEndDate" class="accordion-collapse collapse" aria-labelledby="headingEndDate" data-bs-parent="#waiverDatesAccordion">
+                <div class="accordion-body">
+                  <p class="mb-2">
+                    Enter the final day you need the waiver to remain active.
+                  </p>
+                  <ul class="mb-0">
+                    <li class="list-bullet">For ongoing commercial use, many operators select 1–2 years out (FAA allows up to 48 months for some waivers).</li>
+                    <li class="list-bullet">For a single event, use the event’s final day, or you may consider adding a day or two to account for weather delays.</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            <!-- Timeframe -->
+            <div class="accordion-item">
+              <h2 class="accordion-header" id="headingTimeframe">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTimeframe" aria-expanded="false" aria-controls="collapseTimeframe">
+                  Timeframe
+                </button>
+              </h2>
+              <div id="collapseTimeframe" class="accordion-collapse collapse" aria-labelledby="headingTimeframe" data-bs-parent="#waiverDatesAccordion">
+                <div class="accordion-body">
+                  <p class="mb-2">
+                    Use the drop-down menu on the form and select one or all that apply:
+                  </p>
+                  <ul class="mb-0">
+                    <li class="list-bullet">Sunrise to Noon</li>
+                    <li class="list-bullet">Noon to 4pm</li>
+                    <li class="list-bullet">4pm to Sunset</li>
+                    <li class="list-bullet">Nighttime</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            <!-- Frequency -->
+            <div class="accordion-item">
+              <h2 class="accordion-header" id="headingFrequency">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFrequency" aria-expanded="false" aria-controls="collapseFrequency">
+                  Frequency
+                </button>
+              </h2>
+              <div id="collapseFrequency" class="accordion-collapse collapse" aria-labelledby="headingFrequency" data-bs-parent="#waiverDatesAccordion">
+                <div class="accordion-body">
+                  <p class="mb-2">
+                    Use the frequency drop-down and choose what best matches your operation.
+                  </p>
+                  <p class="small mb-2">
+                    Example: If you have two events within a year in Class B airspace, selecting <strong>“Monthly”</strong> may make the most sense.
+                  </p>
+                  <ul class="mb-0">
+                    <li class="list-bullet">Daily</li>
+                    <li class="list-bullet">Weekly</li>
+                    <li class="list-bullet">Bi-Weekly</li>
+                    <li class="list-bullet">Monthly</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section 2 -->
+          <div class="mb-4 d-flex align-items-center">
+            <div class="section-icon">
+              <span class="fw-bold">2</span>
+            </div>
+            <div>
+              <div class="section-title">Location & Airspace Details</div>
+              <div class="section-subtitle">Describe exactly where you’ll fly and what airspace you’re in.  This is critical information you will need
+                                            for your application.  Read this information carefully!
+              </div>
+            </div>
+          </div>
+
+          <div class="accordion mb-4" id="locationAccordion">
+            <!-- Proposed Location -->
+            <div class="accordion-item">
+              <h2 class="accordion-header" id="headingLocation">
+                <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseLocation" aria-expanded="true" aria-controls="collapseLocation">
+                  Proposed Location
+                </button>
+              </h2>
+              <div id="collapseLocation" class="accordion-collapse collapse " aria-labelledby="headingLocation" data-bs-parent="#locationAccordion">
+                <div class="accordion-body">
+                  <p class="mb-2">
+                    Identify the official name or description of the operating area.
+                  </p>
+                  <ul>
+                    <li class="list-bullet">Name of venue, park, or event site</li>
+                    <li class="list-bullet">Include nearest street address or known landmark</li>
+                    <li class="list-bullet">Include Latitude/Longitude * OF YOUR LAUNCH STIE *</li>
+                  </ul>
+                  <p class="mb-0"><strong>Example:</strong><br>
+                    <ul>
+                    <li class="list-bullet">“Charlotte Motor Speedway, Concord, NC — NASCAR Race"</li>
+                    <li class="list-bullet">"5555 Concord Pkwy S, Concord, NC 28027"</li>
+                    <li class="list-bullet">"GPS: 35°21'05.8"N 80°40'52.0"W"  <--- This is your Launch Site, not the address coordinates.</li>
+                    </ul>
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Proposed Maximum Flight Altitude AGL -->
+            <div class="accordion-item">
+              <h2 class="accordion-header" id="headingAGL">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseAGL" aria-expanded="false" aria-controls="collapseAGL">
+                  Proposed Maximum Flight Altitude (AGL)
+                </button>
+              </h2>
+              <div id="collapseAGL" class="accordion-collapse collapse" aria-labelledby="headingAGL" data-bs-parent="#locationAccordion">
+                <div class="accordion-body">
+                  <p class="mb-2">
+                    Enter the highest altitude you intend to fly, measured in feet <strong>Above Ground Level (AGL)</strong>, not MSL.
+                  </p>
+                  <ul class="mb-2">
+                    <li class="list-bullet">Be realistic and prepared to justify the need in your CONOPS.</li>
+                    <li class="list-bullet">Requests must be at or below <strong>400 ft AGL</strong>.</li>
+                    <li class="list-bullet">
+                      Review the FAA sectional chart grid where you’ll be flying to see if it has an altitude limit for automatic approval.
+                      If your grid has a defined altitude, you may be able to use LAANC. If your grid is 0’, continue with this application.
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            <!-- Latitude/Longitude -->
+            <div class="accordion-item">
+              <h2 class="accordion-header" id="headingLatLong">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseLatLong" aria-expanded="false" aria-controls="collapseLatLong">
+                  Latitude / Longitude
+                </button>
+              </h2>
+              <div id="collapseLatLong" class="accordion-collapse collapse" aria-labelledby="headingLatLong" data-bs-parent="#locationAccordion">
+                <div class="accordion-body">
+                  <p class="mb-2">
+                    Provide the <strong>Launch Site Coordinates</strong> of your intended operations.
+                  </p>
+                  <ul class="mb-0">
+                    <li class="list-bullet">Use DMS coordinates exactly as required by the form.</li>
+                  </ul>
+                  <ul>Get the exact Coordinates by using Google Maps.
+                    <li class="list-bullet">Type the address of your location into Google Maps, or just use Google, click "Open in Google Maps"</li>
+                    <li class="list-bullet">Tap/click into the map on the exact location of your launch site.  </li>
+                    <li class="list-bullet">A small box will pop up at the bottom of the map showing the GPS Coordinates.</li>
+                    <li class="list-bullet">Click on the coordinates.</li>
+                                           <p class="text-subdued "> This will copy the coordinates into the search bar, and drop a pin on your map.</p>
+                    <li class="list-bullet">Take a screenshot of the map showing your Launch Site.</li>
+                    <li class="list-bullet">Copy the HMS Coordinates from the side bar, paste them into your Waiver Wizard.</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            <!-- Radius -->
+            <div class="accordion-item">
+              <h2 class="accordion-header" id="headingRadius">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseRadius" aria-expanded="false" aria-controls="collapseRadius">
+                  Radius
+                </button>
+              </h2>
+              <div id="collapseRadius" class="accordion-collapse collapse" aria-labelledby="headingRadius" data-bs-parent="#locationAccordion">
+                <div class="accordion-body">
+                  <p class="mb-2">
+                    Enter the distance from your Launch Site where operations will occur.
+                  </p>
+                  <ul class="mb-0">
+                    <li class="list-bullet">Measured in Nautical Miles (NM).</li>
+                    <li class="list-bullet">Choose from the drop-down on the AirSpace Wizard form.</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            <!-- Nearest Airport -->
+            <div class="accordion-item">
+              <h2 class="accordion-header" id="headingAirport">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseAirport" aria-expanded="false" aria-controls="collapseAirport">
+                  Nearest Airport
+                </button>
+              </h2>
+              <div id="collapseAirport" class="accordion-collapse collapse" aria-labelledby="headingAirport" data-bs-parent="#locationAccordion">
+                <div class="accordion-body">
+                  <p class="mb-2">
+                    Locate the nearest airport to your Launch Site.
+                  </p>
+                  <p class="mb-2">
+                    Enter the 4-letter ICAO code which you can look up here:
+                  </p>
+                  <p class="mb-0">
+                    <a href="https://www.landingfinder.com" target="_blank" class="link-light-blue">
+                      Airport Locator & ICAO Codes
+                    </a>
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Class of Airspace -->
+            <div class="accordion-item">
+              <h2 class="accordion-header" id="headingAirspace">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseAirspace" aria-expanded="false" aria-controls="collapseAirspace">
+                  Class of Airspace
+                </button>
+              </h2>
+              <div id="collapseAirspace" class="accordion-collapse collapse" aria-labelledby="headingAirspace" data-bs-parent="#locationAccordion">
+                <div class="accordion-body">
+                  <p class="mb-2">
+                    Indicate the controlled airspace classification at your location:
+                  </p>
+                  <ul class="mb-2">
+                    <li class="list-bullet">Class B</li>
+                    <li class="list-bullet">Class C</li>
+                    <li class="list-bullet">Class D</li>
+                    <li class="list-bullet">Class E Surface</li>
+                    <li class="list-bullet">Class G (if requesting a special waiver unrelated to controlled airspace)</li>
+                  </ul>
+                  <p class="mb-0">
+                    <a href="https://portal.airspacelink.com" target="_blank" class="link-light-blue">
+                    Use FAA sectional charts, or use an app like AirHub Portal to confirm the correct airspace class.
+              
+                    </a>
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section 3 -->
+          <div class="mb-4 d-flex align-items-center">
+            <div class="section-icon">
+              <span class="fw-bold">3</span>
+            </div>
+            <div>
+              <div class="section-title">Operational Description & Safety</div>
+              <div class="section-subtitle">Explain what you’re doing and how you’ll keep it safe.</div>
+            </div>
+          </div>
+
+          <div class="accordion mb-4" id="operationsAccordion">
+            <!-- Description of Proposed Operation (short) -->
+            <div class="accordion-item">
+              <h2 class="accordion-header" id="headingShortDesc">
+                <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseShortDesc" aria-expanded="true" aria-controls="collapseShortDesc">
+                  Description of Proposed Operation (Summary)
+                </button>
+              </h2>
+              <div id="collapseShortDesc" class="accordion-collapse collapse " aria-labelledby="headingShortDesc" data-bs-parent="#operationsAccordion">
+                <div class="accordion-body">
+                  <p class="mb-2">
+                 <ul class="mb-0 ps-3">
+                  <li><strong>Purpose:</strong> What the flight supports (media, inspection, mapping, event coverage).</li>
+                  <li><strong>Location:</strong> Venue name, address, and coordinates (decimal latitude/longitude).</li>
+                  <li><strong>Operational Area:</strong> Defined radius or specific zone where the UAS will operate.</li>
+                  <li><strong>Altitude & Profile:</strong> Maximum AGL, typical flight pattern (hover, orbits, lateral moves).</li>
+                  <li><strong>Aircraft & Payload:</strong> UAS model and camera/sensor used.</li>
+                  <li><strong>Launch/Staging:</strong> Controlled launch point, restricted access, separation from public.</li>
+                  <li><strong>VLOS & Crew:</strong> RPIC duties, VO co-location or vantage point.</li>
+                  <li><strong>Safety Actions:</strong> Pre-flight checks, hazard monitoring, procedures for stopping operations.</li>
+                </ul>
+
+                  </p>
+                  
+        
+                </div>
+              </div>
+            </div>
+
+            <!-- Relevant Existing Waivers -->
+            <div class="accordion-item">
+              <h2 class="accordion-header" id="headingExistingWaivers">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseExistingWaivers" aria-expanded="false" aria-controls="collapseExistingWaivers">
+                  Relevant Existing Waivers
+                </button>
+              </h2>
+              <div id="collapseExistingWaivers" class="accordion-collapse collapse" aria-labelledby="headingExistingWaivers" data-bs-parent="#operationsAccordion">
+                <div class="accordion-body">
+                  <p class="mb-2">
+                    If you or your organization already holds an FAA waiver, list it here:
+                  </p>
+                  <ul class="mb-2">
+                    <li class="list-bullet">Waiver number</li>
+                    <li class="list-bullet">Regulation waived</li>
+                    <li class="list-bullet">Expiration date</li>
+                  </ul>
+                  <p class="mb-0">
+                    If none, simply enter: <strong>“None.”</strong>
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Detailed Description / Mini CONOPS -->
+            <div class="accordion-item">
+              <h2 class="accordion-header" id="headingDetailedDesc">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseDetailedDesc" aria-expanded="false" aria-controls="collapseDetailedDesc">
+                  Description of Your Proposed Operation (Detailed / Safety-Focused)
+                </button>
+              </h2>
+              <div id="collapseDetailedDesc" class="accordion-collapse collapse" aria-labelledby="headingDetailedDesc" data-bs-parent="#operationsAccordion">
+                <div class="accordion-body">
+                  <p class="mb-2">
+                    This is often a more detailed and safety-focused expansion of your earlier summary. Write it like a mini CONOPS and cover:
+                  </p>
+                  <ol class="mb-2">
+                    <li class="list-bullet">Purpose of operation</li>
+                    <li class="list-bullet">Aircraft details (make/model, safety features, weight)</li>
+                    <li class="list-bullet">Operational area & environment</li>
+                    <li class="list-bullet">Crew roles (Pilot, Visual Observer, Safety Officer, etc.)</li>
+                    <li class="list-bullet">Mitigation measures (cones, barriers, controlled access, geofencing)</li>
+                    <li class="list-bullet">Risk controls (weather minima, lost-link procedures, emergency actions)</li>
+                    <li class="list-bullet">Safety systems (Remote ID, ADS-B receivers, drone detection, kill switch, parachutes, etc., if applicable)</li>
+                  </ol>
+                  <p class="mb-0">
+                    Focus on how you will identify hazards and what specific steps you will take to keep non-participants and other air traffic safe.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Footer note -->
+          <div class="mt-4 pt-3 border-top border-secondary-subtle small text-muted">
+            Use this guide as a reference only. Always follow current FAA guidance and instructions on the official waiver application form.
+          </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}

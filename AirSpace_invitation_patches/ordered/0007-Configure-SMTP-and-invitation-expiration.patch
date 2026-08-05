@@ -1,0 +1,57 @@
+From 96184a5ccef4c081d82a94bfaad9626bf2fde28e Mon Sep 17 00:00:00 2001
+From: PatchBuilder <patch@example.com>
+Date: Wed, 5 Aug 2026 00:26:34 +0000
+Subject: [PATCH 7/8] Configure SMTP and invitation expiration
+
+---
+ .env.example         | 14 ++++++++++++++
+ accounts/services.py |  2 +-
+ project/settings.py  |  3 +++
+ 3 files changed, 18 insertions(+), 1 deletion(-)
+ create mode 100644 .env.example
+
+diff --git a/.env.example b/.env.example
+new file mode 100644
+index 0000000..9e337c4
+--- /dev/null
++++ b/.env.example
+@@ -0,0 +1,14 @@
++DEBUG=True
++SECRET_KEY=change-me
++ALLOWED_HOSTS=127.0.0.1,localhost
++DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/airspace_local
++
++EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
++EMAIL_HOST=smtp.gmail.com
++EMAIL_PORT=587
++EMAIL_USE_TLS=True
++EMAIL_USE_SSL=False
++EMAIL_HOST_USER=airspacewaiverapp@gmail.com
++EMAIL_HOST_PASSWORD=your-google-app-password
++DEFAULT_FROM_EMAIL=AirSpace <airspacewaiverapp@gmail.com>
++INVITATION_EXPIRY_HOURS=72
+diff --git a/accounts/services.py b/accounts/services.py
+index c07ac03..97939d1 100644
+--- a/accounts/services.py
++++ b/accounts/services.py
+@@ -56,5 +56,5 @@ def create_and_send_invitation(*, request, email, invited_by):
+             invited_by=invited_by,
+             lifetime=invitation_lifetime(),
+         )
+-        transaction.on_commit(lambda: send_invitation_email(request=request, invitation=invitation))
++    send_invitation_email(request=request, invitation=invitation)
+     return invitation
+diff --git a/project/settings.py b/project/settings.py
+index eba962f..d1cc2b0 100644
+--- a/project/settings.py
++++ b/project/settings.py
+@@ -131,3 +131,6 @@ if USE_S3:
+     }
+     STATIC_URL = f"https://{{AWS_STORAGE_BUCKET_NAME}}.s3.{{AWS_S3_REGION_NAME}}.amazonaws.com/static/"
+     MEDIA_URL = f"https://{{AWS_STORAGE_BUCKET_NAME}}.s3.{{AWS_S3_REGION_NAME}}.amazonaws.com/media/"
++
++# Invitation-only registration
++INVITATION_EXPIRY_HOURS = env.int('INVITATION_EXPIRY_HOURS', default=72)
+-- 
+2.47.3
+

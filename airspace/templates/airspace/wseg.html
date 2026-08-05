@@ -1,0 +1,306 @@
+{# templates/airspace/wseg_guiding_questions.html #}
+{% extends "index.html" %}
+{% load static %}
+
+{% block title %}FAA Part 107 WSEG Guiding Questions (Grouped){% endblock %}
+
+{% block content %}
+<div class="container my-4 my-md-5">
+
+  <div class="d-flex flex-column flex-md-row align-items-md-end justify-content-between gap-2 mb-3">
+    <div>
+      <h2 class="mb-1">FAA Part 107 WSEG Guiding Questions</h2>
+      <p class="text-muted mb-0">Grouped by waiver type (questions only)</p>
+    </div>
+  </div>
+
+  <div class="accordion" id="wsegAccordion">
+
+    <!-- §107.25 -->
+    <div class="accordion-item">
+      <h2 class="accordion-header" id="h10725">
+        <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#c10725" aria-expanded="true" aria-controls="c10725">
+          § 107.25 — Operation from a Moving Vehicle or Aircraft
+        </button>
+      </h2>
+      <div id="c10725" class="accordion-collapse collapse show" aria-labelledby="h10725" data-bs-parent="#wsegAccordion">
+        <div class="accordion-body">
+          <ul class="mb-0">
+            <li>Describe how you will ensure the dynamic (i.e., ever-changing) area of operation is evaluated for potential hazards and risks to non-participating persons and property. Include a description of how you will mitigate those risks so the hazards are controlled or eliminated.</li>
+            <li>How will you identify potential hazards to other aircraft, people, and property before flying and during flight?</li>
+            <li>From what kind of vehicle will the Remote Pilot in Command (RPIC) be operating the small unmanned aircraft system (sUAS)?</li>
+            <li>Where will the RPIC and Visual Observer(s) (VO), if used, be in the vehicle or along the route?</li>
+
+            <li>Describe how the RPIC and VO will be able to maintain visual line of sight (VLOS) with the small unmanned aircraft (sUA) from the moving vehicle.</li>
+            <li>How will the RPIC be able to see the sUA when both are moving?</li>
+            <li>How will a VO who meets the requirements of § 107.33, be used for operations conducted under this waiver?</li>
+            <li>What will the VO's responsibilities and/or duties be during flight?</li>
+            <li>What will the RPIC or VO(s) do if they lose VLOS with the sUA?</li>
+
+            <li>Describe how all persons involved in the operation will stay free of distractions that may prevent them from fulfilling their duties.</li>
+            <li>How will the RPIC and VO(s) communicate during flight?</li>
+            <li>How will the RPIC and VO(s) remain free from distractions during flight?</li>
+
+            <li>What are the procedures the RPIC will follow during a loss of data link with the sUA? How do these procedures account for the dynamic movement and positioning of the RPIC and ground control station?</li>
+            <li>What will the RPIC do if he/she loses the command and control link with the sUA?</li>
+            <li>How will the RPIC and VO(s) maintain VLOS with the sUA if the control link is lost?</li>
+            <li>How does this procedure account for all areas where the sUA will be operated?</li>
+            <li>If the control link is lost, how will the RPIC ensure the sUA will not fly over other people?</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- §107.29 -->
+    <div class="accordion-item">
+      <h2 class="accordion-header" id="h10729">
+        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c10729" aria-expanded="false" aria-controls="c10729">
+          § 107.29 — Operation at Night
+        </button>
+      </h2>
+      <div id="c10729" class="accordion-collapse collapse" aria-labelledby="h10729" data-bs-parent="#wsegAccordion">
+        <div class="accordion-body">
+          <ul class="mb-0">
+            <li>Is your sUA equipped with anti-collision lighting?</li>
+            <li>Is the anti-collision lighting visible for at least 3 miles?</li>
+            <li>Do the anti-collision lights flash?</li>
+            <li>Will the anti-collision lights be functioning during the intended flight?</li>
+            <li>If you answered “no” to any of the above, explain why you need to fly while not complying with lighting requirements and describe mitigating factors.</li>
+            <li>Describe any technology, crew resource management, and/or procedural safety precautions you will use to prevent other aircraft from colliding with your sUA when not complying with lighting requirements.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- §107.31 -->
+    <div class="accordion-item">
+      <h2 class="accordion-header" id="h10731">
+        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c10731" aria-expanded="false" aria-controls="c10731">
+          § 107.31 — Visual Line of Sight Aircraft Operation
+        </button>
+      </h2>
+      <div id="c10731" class="accordion-collapse collapse" aria-labelledby="h10731" data-bs-parent="#wsegAccordion">
+        <div class="accordion-body">
+          <ul class="mb-0">
+            <li>Describe how the RPIC will be able to continuously know and determine the position, altitude, and movement of the sUA.</li>
+            <li>Describe how the RPIC will ensure the sUA remains in the area of intended operation. How will this be verified?</li>
+            <li>Describe how the RPIC ensures the operation will not go beyond the capabilities of the command and control link. How will that be tested and verified?</li>
+            <li>What is the route of flight? What factors, with regards to the route of flight, will affect command and control, flight over people/moving vehicles/obstructions, etc.?</li>
+            <li>Does the sUA have a return to home (RTH) function? If so, how does the RPIC ensure the sUA does not overfly people/vehicles or collide with obstructions during the RTH flight?</li>
+            <li>How will the RPIC monitor the airspace surrounding the operation of the sUA to remain well clear of other aircraft?</li>
+
+            <li>Will a Detect and Avoid (DAA) system be used with the operation?</li>
+            <li>What type of DAA system is to be used?</li>
+            <li>Is the DAA system ground-based or airborne?</li>
+            <li>Is the DAA system compliant with industry performance standards?</li>
+            <li>If ground based, is there adequate low-altitude DAA coverage?</li>
+            <li>What is the maximum distance the system is effective in detecting other aircraft?</li>
+            <li>What is the avoidance strategy?</li>
+            <li>If avoidance is automated, what safeguards protect against undesired behavior?</li>
+            <li>How does the RPIC interface with the DAA system?</li>
+            <li>What is the minimum detection distance so avoidance can be carried out?</li>
+            <li>If using obstruction/shielded DAA concepts, what is the shielding criteria?</li>
+            <li>What are the DAA system operating limitations?</li>
+            <li>How will ADS-B IN be integrated into the DAA system?</li>
+            <li>What is the alerting criteria for non-cooperative and ADS-B-equipped intruders?</li>
+            <li>How does the system visibly/audibly alert the RPIC of intruders?</li>
+            <li>Is there alerting for DAA system failures/degradation?</li>
+
+            <li>Describe how the RPIC monitors the surface of the operating area to ensure the sUA will not overfly people or moving vehicles, or how the sUA has been determined safe for those operations.</li>
+            <li>If using VO(s), will the VO(s) be able to maintain visual surveillance of 2 statute miles around the sUA and/or maintain VLOS with the sUA at all times?</li>
+            <li>Describe the anti-collision lighting used on the sUA for visibility to crewmembers in other aircraft.</li>
+
+            <li>Describe how the RPIC will be alerted of a degraded function or failure of the sUAS.</li>
+            <li>Will there be audible/visual alerts as required by standards?</li>
+            <li>What are the procedures if there is a degraded function or failure?</li>
+            <li>What are the C2 lost link procedures?</li>
+
+            <li>Describe how the responsible person will ensure relevant knowledge is required of all persons participating in the operation.</li>
+            <li>What training will be required?</li>
+            <li>How will the training be documented and maintained?</li>
+
+            <li>What are the weather limitations on the sUA?</li>
+            <li>How will you determine weather conditions at launch/recovery and along the route?</li>
+            <li>How will you comply with § 107.51?</li>
+
+            <li>Describe the command and control link of the sUAS.</li>
+            <li>Is the command and control link configuration FCC approved? If so, provide the approval number.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- §107.33 -->
+    <div class="accordion-item">
+      <h2 class="accordion-header" id="h10733">
+        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c10733" aria-expanded="false" aria-controls="c10733">
+          § 107.33 — Visual Observer
+        </button>
+      </h2>
+      <div id="c10733" class="accordion-collapse collapse" aria-labelledby="h10733" data-bs-parent="#wsegAccordion">
+        <div class="accordion-body">
+          <ul class="mb-0">
+            <li>Describe how you will account for communication latency between the VO(s) and the RPIC.</li>
+            <li>How will the RPIC and VO(s) communicate if not near each other?</li>
+            <li>If this communication method fails, how will the RPIC/VO(s) be alerted?</li>
+            <li>What will the RPIC/VO(s) do if a communication failure occurs?</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- §107.35 -->
+    <div class="accordion-item">
+      <h2 class="accordion-header" id="h10735">
+        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c10735" aria-expanded="false" aria-controls="c10735">
+          § 107.35 — Operation of Multiple sUA
+        </button>
+      </h2>
+      <div id="c10735" class="accordion-collapse collapse" aria-labelledby="h10735" data-bs-parent="#wsegAccordion">
+        <div class="accordion-body">
+          <ul class="mb-0">
+            <li>Describe how the operation will remain safe during failure of single and multiple sUA simultaneously.</li>
+            <li>How does the system control multiple sUA and prevent collisions?</li>
+            <li>How will the system ensure individual sUA remain in the predetermined operational area?</li>
+            <li>How will the RPIC see and avoid or detect and avoid all other aircraft when operating multiple sUA?</li>
+            <li>Will the proposed operations use one or more VO(s)?</li>
+            <li>How will the RPIC safely stop all participating sUA in the event of a hazard?</li>
+            <li>How will the RPIC know when a single sUA has failed and how will he/she respond?</li>
+            <li>How will the RPIC respond to multiple simultaneous sUA failures?</li>
+            <li>What additional preflight safety procedures will the RPIC undergo?</li>
+            <li>How many command and control links and procedures does the system use?</li>
+            <li>Do the sUA communicate with each other? If so, what path do the communications follow?</li>
+            <li>How does the system respond when communications fail?</li>
+            <li>How will the RPIC maintain a stand-off distance from non-participating people or property?</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- §107.37 -->
+    <div class="accordion-item">
+      <h2 class="accordion-header" id="h10737">
+        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c10737" aria-expanded="false" aria-controls="c10737">
+          § 107.37 — Operation Near Aircraft; Right-of-Way Rules
+        </button>
+      </h2>
+      <div id="c10737" class="accordion-collapse collapse" aria-labelledby="h10737" data-bs-parent="#wsegAccordion">
+        <div class="accordion-body">
+          <ul class="mb-0">
+            <li>Describe how all manned aircraft pilots are able to detect and avoid the sUA and know they must yield the right-of-way to it.</li>
+            <li>How will operators of other aircraft know they need to give way to your sUA in flight?</li>
+            <li>What procedure will you use to ensure the operator of the manned aircraft is aware that the sUA does not need to yield the right-of-way?</li>
+            <li>How will operators of other aircraft visually locate your sUA in flight?</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- §107.39 -->
+    <div class="accordion-item">
+      <h2 class="accordion-header" id="h10739">
+        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c10739" aria-expanded="false" aria-controls="c10739">
+          § 107.39 — Operation over Human Beings
+        </button>
+      </h2>
+      <div id="c10739" class="accordion-collapse collapse" aria-labelledby="h10739" data-bs-parent="#wsegAccordion">
+        <div class="accordion-body">
+          <ul class="mb-0">
+            <li>Describe the proposed operation in detail.</li>
+            <li>What is the takeoff weight of the sUA, including payload and required equipage?</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- §107.51(a) -->
+    <div class="accordion-item">
+      <h2 class="accordion-header" id="h10751a">
+        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c10751a" aria-expanded="false" aria-controls="c10751a">
+          § 107.51(a) — Operating Limitations: Groundspeed
+        </button>
+      </h2>
+      <div id="c10751a" class="accordion-collapse collapse" aria-labelledby="h10751a" data-bs-parent="#wsegAccordion">
+        <div class="accordion-body">
+          <ul class="mb-0">
+            <li>Describe how you will ensure that loss of control at higher speeds poses no additional hazard.</li>
+            <li>How will the RPIC ensure the sUA flying over 87 knots will not increase the likelihood of hitting another aircraft, person, or property?</li>
+            <li>How will the RPIC maintain VLOS with the sUA over 87 knots?</li>
+            <li>Describe the anti-collision lighting on the sUA for visibility to crewmembers of other aircraft.</li>
+            <li>Will the sUA be sufficiently visible to other aircraft?</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- §107.51(b) -->
+    <div class="accordion-item">
+      <h2 class="accordion-header" id="h10751b">
+        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c10751b" aria-expanded="false" aria-controls="c10751b">
+          § 107.51(b) — Operating Limitations: Altitude
+        </button>
+      </h2>
+      <div id="c10751b" class="accordion-collapse collapse" aria-labelledby="h10751b" data-bs-parent="#wsegAccordion">
+        <div class="accordion-body">
+          <ul class="mb-0">
+            <li>Describe how the sUA will not pose a hazard when operating at altitudes other than prescribed.</li>
+            <li>How will the RPIC and VO(s) see and avoid other aircraft when flying above 400 ft AGL?</li>
+            <li>Describe the anti-collision lighting used on the sUA for visibility to other aircraft.</li>
+            <li>Will the sUA be sufficiently visible?</li>
+            <li>Describe how the RPIC will be able to accurately determine the sUA’s altitude and direction of flight.</li>
+            <li>How will the RPIC know real-time geographic location, altitude, and direction of flight?</li>
+            <li>How will the RPIC maintain VLOS at the maximum altitude/distance requested?</li>
+            <li>Describe the area of operations using landmarks/maps, including distance from the nearest airport.</li>
+            <li>In addition to filing a NOTAM, describe how the RPIC will communicate/coordinate with ATC if required.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- §107.51(c) -->
+    <div class="accordion-item">
+      <h2 class="accordion-header" id="h10751c">
+        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c10751c" aria-expanded="false" aria-controls="c10751c">
+          § 107.51(c) — Minimum Flight Visibility
+        </button>
+      </h2>
+      <div id="c10751c" class="accordion-collapse collapse" aria-labelledby="h10751c" data-bs-parent="#wsegAccordion">
+        <div class="accordion-body">
+          <ul class="mb-0">
+            <li>Describe how the RPIC will maintain VLOS with reduced visibility (&lt;3 sm).</li>
+            <li>How will the RPIC maintain VLOS when visibility is reduced?</li>
+            <li>What is the maximum distance the sUA will be visible?</li>
+            <li>Describe how the sUA will avoid non-participating aircraft in reduced visibility.</li>
+            <li>How will the RPIC see and avoid or detect and avoid non-participating aircraft?</li>
+            <li>Describe the anti-collision lighting used on the sUA for visibility to other aircraft.</li>
+            <li>Will the sUA be sufficiently visible?</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- §107.51(d) -->
+    <div class="accordion-item">
+      <h2 class="accordion-header" id="h10751d">
+        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c10751d" aria-expanded="false" aria-controls="c10751d">
+          § 107.51(d) — Cloud Clearance
+        </button>
+      </h2>
+      <div id="c10751d" class="accordion-collapse collapse" aria-labelledby="h10751d" data-bs-parent="#wsegAccordion">
+        <div class="accordion-body">
+          <ul class="mb-0">
+            <li>Describe how the RPIC will maintain VLOS with the sUA when operating closer to clouds than prescribed.</li>
+            <li>How will the RPIC know when the sUA is too close to clouds and prevent inadvertent entry?</li>
+            <li>What is the maximum vertical distance the sUA will be visible?</li>
+            <li>Describe how the RPIC will locate and avoid non-participating aircraft near clouds.</li>
+            <li>How will the RPIC see and avoid aircraft hidden by clouds?</li>
+            <li>Describe the anti-collision lighting used on the sUA for visibility to other aircraft.</li>
+            <li>Will the sUA be sufficiently visible?</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

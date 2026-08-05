@@ -1,0 +1,55 @@
+From 934734680d92a407f1eafb5af8d64b5779af312a Mon Sep 17 00:00:00 2001
+From: PatchBuilder <patch@example.com>
+Date: Wed, 5 Aug 2026 00:26:14 +0000
+Subject: [PATCH 5/8] Expose invitation administration and navigation
+
+---
+ accounts/admin.py    | 10 +++++++++-
+ templates/index.html |  3 ++-
+ 2 files changed, 11 insertions(+), 2 deletions(-)
+
+diff --git a/accounts/admin.py b/accounts/admin.py
+index a6abcda..e8902bb 100644
+--- a/accounts/admin.py
++++ b/accounts/admin.py
+@@ -2,7 +2,7 @@ from django.contrib import admin
+ from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
+ 
+ from .forms import AdminUserCreationForm, AdminUserChangeForm
+-from .models import User
++from .models import Invitation, User
+ 
+ 
+ @admin.register(User)
+@@ -31,3 +31,11 @@ class UserAdmin(DjangoUserAdmin):
+         ),
+     )
+     readonly_fields = ('date_joined', 'last_login', 'created_at', 'updated_at')
++
++
++@admin.register(Invitation)
++class InvitationAdmin(admin.ModelAdmin):
++    list_display = ("email", "display_status", "invited_by", "sent_at", "expires_at", "accepted_at")
++    list_filter = ("status", "sent_at", "expires_at")
++    search_fields = ("email", "invited_by__email")
++    readonly_fields = ("token", "created_at", "updated_at", "sent_at", "accepted_at")
+diff --git a/templates/index.html b/templates/index.html
+index 42835ee..e715d4b 100644
+--- a/templates/index.html
++++ b/templates/index.html
+@@ -18,10 +18,11 @@
+             <div class="ms-auto d-flex align-items-center gap-3 py-3 py-lg-0">
+               {% if request.user.is_authenticated %}
+                 <span class="text-secondary small">{{ request.user.email }}</span>
++                {% if request.user.is_staff %}<a class="btn btn-sm btn-outline-dark" href="{% url 'accounts:invitation_list' %}">Invitations</a>{% endif %}
+                 <a class="btn btn-sm btn-outline-dark" href="{% url 'accounts:logout' %}">Log out</a>
+               {% else %}
+                 <a class="btn btn-sm btn-outline-dark" href="{% url 'accounts:login' %}">Sign in</a>
+-                <a class="btn btn-sm btn-dark" href="{% url 'accounts:register' %}">Register</a>
++
+               {% endif %}
+             </div>
+           </div>
+-- 
+2.47.3
+

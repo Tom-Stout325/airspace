@@ -1,0 +1,166 @@
+{% extends "index.html" %}
+{% load static %}
+
+{% block title %}Airspace Waivers | Airspace{% endblock %}
+
+{% block content %}
+<div class="container mt-4 mb-5" style="max-width: 1000px;">
+
+  <!-- Header + actions -->
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h1 class="h3 mb-1">Airspace Waivers</h1>
+      <p class="text-muted mb-0">
+        All waiver drafts and their generated CONOPS linked together.
+      </p>
+    </div>
+    <!-- Desktop actions -->
+    <div class="text-end d-none d-md-block">
+      <a href="{% url 'airspace:airspace_waiver_new' %}" class="btn btn-primary btn-sm mb-2 px-4">
+        <i class="fa-solid fa-plus me-1"></i>
+        New Waiver
+      </a>
+    </div>
+  </div>
+
+  <!-- Mobile actions -->
+  <div class="d-md-none mb-3">
+    <a href="{% url 'airspace:airspace_waiver_new' %}" class="btn btn-primary w-100 mb-2">
+      <i class="fa-solid fa-plus me-1"></i>
+      New Waiver
+    </a>
+  </div>
+
+  {% if waivers %}
+    <div class="row g-3">
+      {% for waiver in waivers %}
+        <div class="col-12">
+          <div class="card shadow-sm h-100">
+            <div class="card-body">
+
+              <!-- Top row: title + status + CONOPS badge -->
+              <div class="d-flex flex-column flex-md-row justify-content-between align-items-start mb-2">
+                <div class="me-md-3">
+                  <h2 class="h5 mb-1">
+                    {{ waiver.operation_title|default:"(Untitled Waiver)" }}
+                  </h2>
+                  <p class="small text-muted mb-1">
+                    {{ waiver.start_date|date:"M j, Y" }} &ndash; {{ waiver.end_date|date:"M j, Y" }}
+                    • Airspace: {{ waiver.airspace_class|default:"N/A" }}
+                  </p>
+                  <p class="small text-muted mb-0">
+                    Aircraft:
+                    {% if waiver.aircraft %}
+                      {{ waiver.aircraft }}
+                    {% elif waiver.aircraft_custom %}
+                      {{ waiver.aircraft_custom }}
+                    {% else %}
+                      <span class="text-body-secondary">Not specified</span>
+                    {% endif %}
+                  </p>
+                </div>
+
+                <div class="text-md-end mt-2 mt-md-0">
+                  <span class="badge bg-light text-dark border mb-1">
+                    Status: {{ waiver.get_status_display }}
+                  </span>
+                  <div>
+                    {% if waiver.conops_text %}
+                      <span
+                        class="badge bg-success-subtle text-success-emphasis border border-success-subtle small">
+                        <i class="fa-solid fa-circle-check me-1"></i>
+                        CONOPS generated
+                      </span>
+                      {% if waiver.conops_generated_at %}
+                        <div class="small text-muted mt-1">
+                          {{ waiver.conops_generated_at|date:"M j, Y g:i a" }}
+                        </div>
+                      {% endif %}
+                    {% else %}
+                      <span
+                        class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle small">
+                        <i class="fa-regular fa-circle me-1"></i>
+                        CONOPS not generated
+                      </span>
+                    {% endif %}
+                  </div>
+                </div>
+              </div>
+
+              <!-- Location / description -->
+              {% if waiver.proposed_location %}
+                <p class="small mb-2">
+                  <span class="fw-semibold">Location:</span>
+                  {{ waiver.proposed_location|truncatewords:20 }}
+                </p>
+              {% endif %}
+
+              <!-- Actions: separate buttons -->
+              <div class="d-flex flex-wrap gap-2 mt-3">
+                <a href="" class="btn btn-outline-primary btn-sm">
+                  View / Edit Waiver
+                </a>
+
+              <a href="{% url 'airspace:waiver_planning_delete' pk=waiver.id %}"
+                class="btn btn-outline-danger btn-sm">
+                Delete Waiver
+              </a>
+
+    
+              </div>
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+
+    {% if is_paginated %}
+      <nav aria-label="Waiver pagination" class="mt-3">
+        <ul class="pagination pagination-sm justify-content-center mb-0">
+          {% if page_obj.has_previous %}
+            <li class="page-item">
+              <a class="page-link" href="?page={{ page_obj.previous_page_number }}">&laquo;</a>
+            </li>
+          {% else %}
+            <li class="page-item disabled">
+              <span class="page-link">&laquo;</span>
+            </li>
+          {% endif %}
+
+          {% for num in paginator.page_range %}
+            {% if page_obj.number == num %}
+              <li class="page-item active">
+                <span class="page-link">{{ num }}</span>
+              </li>
+            {% elif num > page_obj.number|add:"-3" and num < page_obj.number|add:"3" %}
+              <li class="page-item">
+                <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+              </li>
+            {% endif %}
+          {% endfor %}
+
+          {% if page_obj.has_next %}
+            <li class="page-item">
+              <a class="page-link" href="?page={{ page_obj.next_page_number }}">&raquo;</a>
+            </li>
+          {% else %}
+            <li class="page-item disabled">
+              <span class="page-link">&raquo;</span>
+            </li>
+          {% endif %}
+        </ul>
+      </nav>
+    {% endif %}
+
+    {% else %}
+      <div class="alert alert-info">
+        You don't have any airspace waivers yet.
+        <a href="{% url 'airspace:waiver_planning_new' %}" class="alert-link">
+          Create your first waiver
+        </a>
+        to generate a CONOPS.
+      </div>
+    {% endif %}
+
+  </div>
+{% endblock %}

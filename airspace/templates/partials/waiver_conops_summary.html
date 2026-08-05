@@ -1,0 +1,233 @@
+{% extends "index.html" %}
+{% load static %}
+
+{% block title %}Waiver CONOPS Summary{% endblock %}
+
+{% block content %}
+<div class="container my-4 my-md-5">
+
+  <!-- Page heading -->
+  <div class="mb-4 text-center">
+    <h2 class="fw-light text-primary mb-1">FAA Air Space Summary</h2>
+    <p class="text-muted  w-75 mx-auto">
+      This is a summary of the information required for your FAA airspace waiver request.   When you begin a new AirSpace Waiver Request, AirSpace will walk you through
+      all of the information your need.
+    </p>
+  </div>
+
+  <!-- Info banner -->
+  <div class="col-12 alert alert-info small shadow-sm border-0 mb-4">
+    <i class="fa-solid fa-circle-info me-2"></i>
+    Use this as a checklist while gathering information before starting a new waiver request.
+    AirSpace will organize these details into a complete package for your FAA application.
+  </div>
+
+
+ <div class="col-12 border-0 shadow-sm mb-4 pb-4 text-center ">
+    <a href="{% url 'airspace:portal_home' %}" class="btn btn-outline-primary w-25"> Back</a>
+    <a href=""></a>
+  </div>
+
+  <!-- Main layout -->
+  <div class="row g-3 g-md-4">
+
+    <!-- Overview -->
+    <div class="col-12">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <h5 class="card-title mb-2">
+            <i class="fa-solid fa-file-lines me-2 text-primary"></i>
+            Overall Operation Overview
+          </h5>
+          <p class="small text-muted mb-2">
+            High-level description of what you want to do under the waiver.
+          </p>
+          <ul class="small mb-0">
+            <li>Purpose of the operation (e.g., live broadcast, event coverage, inspections).</li>
+            <li>General description of flight activities (shots, patterns, altitudes, proximity to people/structures).</li>
+            <li>Dates, times of day, and frequency of operations.</li>
+            <li>Type of environment (stadium, race track, urban downtown, rural site, etc.).</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Operation profile & area -->
+    <div class="col-12 col-lg-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <h5 class="card-title mb-2">
+            <i class="fa-solid fa-location-dot me-2 text-primary"></i>
+            Operation Area & Airspace
+          </h5>
+          <p class="small text-muted mb-2">
+            Where the operation will take place and which airspace it affects.
+          </p>
+          <ul class="small mb-0">
+            <li>Precise location (address, venue name, city/state).</li>
+            <li>Latitude/longitude for key points (launch site, flight box, recovery areas).</li>
+            <li>Maximum altitude AGL and terrain/elevation considerations.</li>
+            <li>Airspace class (B/C/D/E/G) and nearby airports/heliports.</li>
+            <li>Controlled-access areas vs. open public spaces.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Aircraft -->
+    <div class="col-12 col-lg-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <h5 class="card-title mb-2">
+            <i class="fa-solid fa-helicopter me-2 text-primary"></i>
+            Aircraft & Safety Features
+          </h5>
+          <p class="small text-muted mb-2">
+            The small UAS you will use and how it is configured for safe operations.
+          </p>
+          <ul class="small mb-0">
+            <li>Drone make/model(s) and weight.</li>
+            <li>Safety features (obstacle sensing, RTH, ADS-B In, geo-fencing, prop guards if used).</li>
+            <li>Typical flight time, range, max speed used during operations.</li>
+            <li>Payload details (camera, lens, mounting, any external loads).</li>
+            <li>Fail-safe and loss-link behavior (RTH, controlled descent, termination plan).</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- People & roles -->
+    <div class="col-12 col-lg-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <h5 class="card-title mb-2">
+            <i class="fa-solid fa-user-shield me-2 text-primary"></i>
+            Personnel, Roles & Experience
+          </h5>
+          <p class="small text-muted mb-2">
+            Who is responsible for the operation and how the crew is structured.
+          </p>
+          <ul class="small mb-0">
+            <li>Remote Pilot in Command (RPIC) name & Part 107 certificate number.</li>
+            <li>Pilot flight experience (total hours, event-type experience, night/OOP experience).</li>
+            <li>Visual observers and other crew roles (camera op, safety officer, spotters).</li>
+            <li>Training and currency requirements for all crew members.</li>
+            <li>Responsible Party contact details for the waiver.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- People on the ground / vehicles -->
+    <div class="col-12 col-lg-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <h5 class="card-title mb-2">
+            <i class="fa-solid fa-users-line me-2 text-primary"></i>
+            People, Vehicles & Ground Environment
+          </h5>
+          <p class="small text-muted mb-2">
+            Who is under/near the operation and how they are protected.
+          </p>
+          <ul class="small mb-0">
+            <li>Types of people involved (participants, staff, spectators, public).</li>
+            <li>Presence of moving vehicles (race cars, support vehicles, public roads).</li>
+            <li>How access to the area is controlled (tickets, fencing, security, cones).</li>
+            <li>Standoff distances from crowds, grandstands, and vehicles.</li>
+            <li>Emergency access routes for first responders.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Risk & mitigation -->
+    <div class="col-12">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <h5 class="card-title mb-2">
+            <i class="fa-solid fa-triangle-exclamation me-2 text-primary"></i>
+            Risk Assessment & Mitigation Strategies
+          </h5>
+          <p class="small text-muted mb-2">
+            The hazards you’ve identified and how you will reduce risk to people and other aircraft.
+          </p>
+          <ul class="small mb-0">
+            <li>Key hazards (collisions, loss of control, flyaway, system failures, weather, obstacles).</li>
+            <li>Mitigations for each hazard (geo-fencing, standoff buffers, VO coverage, speed/altitude limits).</li>
+            <li>Pre-flight and post-flight inspections and checklists.</li>
+            <li>Lost link, low battery, and emergency landing procedures.</li>
+            <li>Coordination with ATC or event control, if applicable.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Containment & emergency -->
+    <div class="col-12 col-lg-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <h5 class="card-title mb-2">
+            <i class="fa-solid fa-square-full me-2 text-primary"></i>
+            Containment & Emergency Procedures
+          </h5>
+          <p class="small text-muted mb-2">
+            How you keep the drone and its risk inside a defined, safe area.
+          </p>
+          <ul class="small mb-0">
+            <li>Defined horizontal “flight box” and vertical limits.</li>
+            <li>Use of software limits (altitude, distance, geo-fence) to enforce containment.</li>
+            <li>Designated emergency landing zones and safe corridors.</li>
+            <li>Actions on loss of GNSS, compass errors, or unexpected behavior.</li>
+            <li>Incident reporting and post-incident review process.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Communications & weather -->
+    <div class="col-12 col-lg-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <h5 class="card-title mb-2">
+            <i class="fa-solid fa-tower-broadcast me-2 text-primary"></i>
+            Communications, Weather & Operating Conditions
+          </h5>
+          <p class="small text-muted mb-2">
+            How the crew talks, monitors conditions, and decides if it is safe to fly.
+          </p>
+          <ul class="small mb-0">
+            <li>Crew communication methods (radios, intercom, hand signals).</li>
+            <li>Standard callouts for low battery, link issues, people entering the area, and abort.</li>
+            <li>Weather minimums (visibility, winds, ceiling, no precipitation/smoke).</li>
+            <li>Night or low-light procedures (anti-collision lighting, night training, extra standoff).</li>
+            <li>Decision criteria for delaying, modifying, or canceling flights.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Documentation & records -->
+    <div class="col-12">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <h5 class="card-title mb-2">
+            <i class="fa-solid fa-folder-open me-2 text-primary"></i>
+            Documentation, Records & Compliance
+          </h5>
+          <p class="small text-muted mb-2">
+            What you will track and keep available to support the waiver.
+          </p>
+          <ul class="small mb-0">
+            <li>List of approved aircraft and serial numbers used under the waiver.</li>
+            <li>List of qualified pilots, VOs, and their training/experience.</li>
+            <li>Flight logs for each mission (time, location, altitudes, anomalies).</li>
+            <li>Accident/incident logs and corrective actions.</li>
+            <li>Copies of the waiver, CONOPS, and any supporting safety documentation.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,24 @@
+chmod +x scripts/zip_project.sh
+./scripts/zip_project.sh
+
+
+Heroku Django Shell:  heroku run -a airspace -- python manage.py shell
+
+Backup the poject:
+cp -R _AirSpace _AirSpace_backup
+
+cd into the root folder
+
+
+unzip ~/Downloads/AirSpace_invitation_patches.zip
+
+
+
+git apply --check ~/Downloads/AirSpace_invitation_patches/ordered/0008-Add-invitation-permissions-and-ownership-tests.patch
+
+git apply --check /path/to/AirSpace_invitation_patches/ordered/0008-Add-invitation-permissions-and-ownership-tests.patch
+git apply /path/to/AirSpace_invitation_patches/ordered/0008-Add-invitation-permissions-and-ownership-tests.patch
+
+python manage.py test accounts airspace -v 2
+
+/Volumes/Apps/_CODING/__AirSpace/AirSpace_invitation_patches

@@ -1,0 +1,186 @@
+{% extends "index.html" %}
+
+{% block title %}Waiver & CONOPS – {{ waiver.operation_title|default:"Waiver" }}{% endblock %}
+
+{% block content %}
+<div class="container my-4" style="max-width: 1000px;">
+
+  <!-- Back links -->
+  <div class="mb-3">
+    <a href="{% url 'airspace:waiver_list' %}" class="btn btn-link btn-sm px-0 me-3">
+      ← Back to waivers
+    </a>
+    <a href="{% url 'airspace:waiver_form' %}" class="btn btn-link btn-sm px-0">
+      Start a new waiver
+    </a>
+  </div>
+
+  <!-- Page header -->
+  <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-3">
+    <div>
+      <h1 class="h4 mb-1">Waiver Details &amp; Concept of Operations</h1>
+      <p class="text-muted small mb-0">
+        Operation: <strong>{{ waiver.operation_title|default:"(Untitled Waiver)" }}</strong><br>
+        Created: {{ waiver.created_at|date:"M j, Y g:i a" }} • Last updated: {{ waiver.updated_at|date:"M j, Y g:i a" }}
+      </p>
+    </div>
+    <div class="mt-2 mt-md-0 text-md-end">
+      {% if waiver.conops_text %}
+        <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle small d-inline-flex align-items-center mb-1">
+          <i class="fa-solid fa-circle-check me-1"></i> CONOPS generated
+        </span><br>
+        {% if waiver.conops_generated_at %}
+          <span class="small text-muted">
+            Generated: {{ waiver.conops_generated_at|date:"M j, Y g:i a" }}
+          </span>
+        {% endif %}
+      {% else %}
+        <span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle small d-inline-flex align-items-center mb-1">
+          <i class="fa-regular fa-circle me-1"></i> CONOPS not generated
+        </span><br>
+        <span class="small text-muted">Use the button below to generate it.</span>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Waiver details + Generate button -->
+  <div class="card shadow-sm mb-4">
+    <div class="card-body">
+      <div class="row g-3">
+        <!-- Left: Waiver detail fields (read-only) -->
+        <div class="col-12 col-lg-8">
+          <h2 class="h6 text-uppercase text-muted mb-3">Waiver Details</h2>
+
+          <div class="row g-2 small">
+            <div class="col-12 col-md-6">
+              <div class="fw-semibold">Operation Title</div>
+              <div>{{ waiver.operation_title|default:"—" }}</div>
+            </div>
+
+            <div class="col-12 col-md-6">
+              <div class="fw-semibold">Airspace Class</div>
+              <div>
+                {% if waiver.airspace_class %}
+                  {{ waiver.get_airspace_class_display }}
+                {% else %}
+                  —
+                {% endif %}
+              </div>
+            </div>
+
+            <div class="col-12 col-md-6">
+              <div class="fw-semibold">Dates</div>
+              <div>
+                {{ waiver.start_date|date:"M j, Y" }} – {{ waiver.end_date|date:"M j, Y" }}
+              </div>
+            </div>
+
+            <div class="col-12 col-md-6">
+              <div class="fw-semibold">Timeframe / Frequency</div>
+              <div>
+                {% if waiver.timeframe %}
+                  {{ waiver.get_timeframe_display }}
+                {% else %}N/A{% endif %}
+                {% if waiver.frequency %} • {{ waiver.get_frequency_display }}{% endif %}
+              </div>
+            </div>
+
+            <div class="col-12 col-md-6">
+              <div class="fw-semibold">Local Time Zone</div>
+              <div>{{ waiver.local_timezone|default:"—" }}</div>
+            </div>
+
+            <div class="col-12 col-md-6">
+              <div class="fw-semibold">Max AGL</div>
+              <div>
+                {% if waiver.max_agl %}
+                  {{ waiver.max_agl }} ft AGL
+                {% else %}
+                  —
+                {% endif %}
+              </div>
+            </div>
+
+            <div class="col-12 col-md-6">
+              <div class="fw-semibold">Aircraft</div>
+              <div>
+                {% if waiver.aircraft %}
+                  {{ waiver.aircraft }}
+                {% elif waiver.aircraft_custom %}
+                  {{ waiver.aircraft_custom }}
+                {% else %}
+                  —
+                {% endif %}
+              </div>
+            </div>
+
+            <div class="col-12">
+              <div class="fw-semibold">Proposed Location</div>
+              <div>{{ waiver.proposed_location|default:"—" }}</div>
+            </div>
+
+            <div class="col-12 col-md-6">
+              <div class="fw-semibold">Center Coordinates (Decimal)</div>
+              <div class="text-muted">
+                {% if waiver.lat_decimal and waiver.lon_decimal %}
+                  {{ waiver.lat_decimal }}°, {{ waiver.lon_decimal }}°
+                {% else %}
+                  —
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Actions -->
+        <div class="col-12 col-lg-4">
+          <h2 class="h6 text-uppercase text-muted mb-3">Actions</h2>
+
+          <form method="post" class="mb-3">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-primary w-100 mb-2">
+              {% if waiver.conops_text %}
+                <i class="fa-solid fa-rotate me-1"></i>
+                Regenerate CONOPS
+              {% else %}
+                <i class="fa-solid fa-wand-magic-sparkles me-1"></i>
+                Generate CONOPS
+              {% endif %}
+            </button>
+          </form>
+
+          <p class="small text-muted mb-0">
+            The CONOPS is generated from the saved waiver details shown on the left.
+            To change the CONOPS, update the waiver in the future (via an edit flow)
+            and regenerate here.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONOPS output -->
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <h2 class="h6 text-uppercase text-muted mb-0">Generated CONOPS</h2>
+      </div>
+
+      {% if waiver.conops_text %}
+        <div class="small">
+          <pre class="mb-0" style="white-space: pre-wrap; word-wrap: break-word;">
+{{ waiver.conops_text }}
+          </pre>
+        </div>
+      {% else %}
+        <div class="alert alert-info mb-0">
+          No CONOPS has been generated yet for this waiver. Click the
+          <strong>{% if waiver.conops_text %}Regenerate{% else %}Generate{% endif %} CONOPS</strong>
+          button above to create one based on the saved waiver details.
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+{% endblock %}
