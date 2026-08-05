@@ -76,26 +76,3 @@ class PilotProfile(models.Model):
         )
 
 
-
-class Aircraft(models.Model):
-    user                 = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="aircraft")
-    brand                = models.CharField(max_length=100)
-    model                = models.CharField(max_length=100)
-    registration_number  = models.CharField(max_length=100, blank=True)
-    safety_features      = models.TextField(blank=True)
-    active               = models.BooleanField(default=True)
-    created_at           = models.DateTimeField(auto_now_add=True)
-    updated_at           = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        ordering = ["brand", "model", "id"]
-
-    def __str__(self):
-        label = f"{self.brand} {self.model}".strip()
-        if self.registration_number:
-            return f"{label} ({self.registration_number})"
-        return label
-
-    @property
-    def drone_safety_profile(self):
-        return self

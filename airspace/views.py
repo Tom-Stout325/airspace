@@ -20,7 +20,7 @@ from pilot.utils import image_field_to_data_uri
 from dal_select2.widgets import ModelSelect2
 from dal_select2.views import Select2QuerySetView
 
-from pilot.models import Aircraft, PilotProfile
+from drones.models import Drone
 
 from .forms import _qs_user_scoped
 from .utils import decimal_to_dms, dms_to_decimal, generate_short_description  # keep imported if used elsewhere
@@ -76,7 +76,7 @@ class AirspacePortalView(LoginRequiredMixin, TemplateView):
         profile = PilotProfile.objects.filter(user=user).first()
         ctx["total_flights"] = 0
         ctx["total_flight_time"] = None
-        ctx["active_drones"] = Aircraft.objects.filter(user=user, active=True).count()
+        ctx["active_drones"] = Drone.objects.filter(user=user, status=Drone.Status.ACTIVE).count()
         ctx["total_waivers"] = WaiverPlanning.objects.filter(user=user).count()
         ctx["waivers_with_conops"] = WaiverApplication.objects.filter(user=user).exclude(description="").count()
         ctx["upcoming_waivers"] = WaiverPlanning.objects.filter(user=user, start_date__gte=timezone.localdate()).count()
@@ -168,16 +168,15 @@ def waiver_planning_new(request):
             }
         )
     # Drone safety features data for JS auto-fill (UUID-safe, user-scoped)
-    equip_qs = Aircraft.objects.filter(active=True, user=request.user)
-    equip_qs = _qs_user_scoped(equip_qs, request.user).select_related("drone_safety_profile")
+    equip_qs = Drone.objects.filter(status=Drone.Status.ACTIVE, user=request.user)
+    equip_qs = _qs_user_scoped(equip_qs, request.user)
 
     drone_safety_data = []
     for d in equip_qs:
-        profile = d.drone_safety_profile
         drone_safety_data.append(
             {
-                "id": str(d.id),  # UUID -> string for JS and select values
-                "safety_features": (getattr(profile, "safety_features", "") or "").strip(),
+                "id": str(d.id),
+                "safety_features": (d.safety_features or "").strip(),
             }
         )
 

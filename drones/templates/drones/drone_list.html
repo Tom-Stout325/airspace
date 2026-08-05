@@ -1,0 +1,34 @@
+{% extends "index.html" %}
+{% block title %}Drone Inventory | AirSpace{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+    <div><h1 class="h2 mb-1">Drone inventory</h1><p class="text-muted mb-0">All aircraft associated with your account.</p></div>
+    <div class="d-flex gap-2"><a href="{% url 'pilot:dashboard' %}" class="btn btn-outline-secondary">Pilot dashboard</a><a href="{% url 'drones:create' %}" class="btn btn-warning">Add drone</a></div>
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="card-body p-0">
+      {% if drones %}
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light"><tr><th>Drone</th><th class="d-none d-md-table-cell">FAA registration</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+          <tbody>
+          {% for drone in drones %}
+            <tr>
+              <td><div class="fw-semibold">{{ drone.manufacturer }} {{ drone.model }}</div>{% if drone.nickname %}<div class="small text-muted">{{ drone.nickname }}</div>{% endif %}</td>
+              <td class="d-none d-md-table-cell">{{ drone.faa_registration_number|default:"Not provided" }}</td>
+              <td><span class="badge {% if drone.status == 'active' %}text-bg-success{% else %}text-bg-secondary{% endif %}">{{ drone.get_status_display }}</span></td>
+              <td class="text-end"><a href="{% url 'drones:detail' drone.pk %}" class="btn btn-sm btn-outline-primary">View details</a></td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="p-4 text-center"><p class="text-muted mb-3">No drones have been added yet.</p><a href="{% url 'drones:create' %}" class="btn btn-warning">Add your first drone</a></div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

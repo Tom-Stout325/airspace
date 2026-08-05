@@ -1,0 +1,101 @@
+{% extends "index.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-4 mb-5" style="max-width: 720px;">
+  <a href="{% url 'drones:drone_safety_profile_list' %}" class="btn btn-link btn-sm px-0 mb-3">
+    ← Back to safety profiles
+  </a>
+
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <h3 class="h5 text-primary fw-light mb-3">
+        {{ title|default:"Drone Safety Profile" }}
+      </h3>
+
+      <form method="post" novalidate>
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+          <div class="alert alert-danger">
+            {{ form.non_field_errors }}
+          </div>
+        {% endif %}
+
+        <div class="row g-3">
+          <div class="col-12 col-md-6">
+            <label class="form-label" for="{{ form.brand.id_for_label }}">Brand</label>
+            {{ form.brand }}
+            {{ form.brand.errors }}
+          </div>
+
+          <div class="col-12 col-md-6">
+            <label class="form-label" for="{{ form.model_name.id_for_label }}">Model name</label>
+            {{ form.model_name }}
+            {{ form.model_name.errors }}
+          </div>
+
+          <div class="col-12">
+            <label class="form-label" for="{{ form.full_display_name.id_for_label }}">Display name</label>
+            {{ form.full_display_name }}
+            <div class="form-text">
+              Canonical label, e.g. “DJI Mavic 4 Pro”.
+            </div>
+            {{ form.full_display_name.errors }}
+          </div>
+
+          <div class="col-6 col-md-4">
+            <label class="form-label" for="{{ form.year_released.id_for_label }}">Year</label>
+            {{ form.year_released }}
+            {{ form.year_released.errors }}
+          </div>
+
+          <div class="col-6 col-md-4 d-flex align-items-center">
+            <div class="form-check mt-3 mt-md-4">
+              {{ form.is_enterprise }}
+              <label class="form-check-label" for="{{ form.is_enterprise.id_for_label }}">
+                Enterprise platform
+              </label>
+            </div>
+            {{ form.is_enterprise.errors }}
+          </div>
+
+          <div class="col-12">
+            <label class="form-label" for="{{ form.safety_features.id_for_label }}">Safety features</label>
+            {{ form.safety_features }}
+            <div class="form-text">
+              Use bullet points for readability. These will flow into Waiver Application automatically.
+            </div>
+            {{ form.safety_features.errors }}
+          </div>
+
+          <div class="col-12">
+            <label class="form-label" for="{{ form.aka_names.id_for_label }}">AKA / alternate names</label>
+            {{ form.aka_names }}
+            {{ form.aka_names.errors }}
+          </div>
+
+          <div class="col-12">
+            <div class="form-check mt-2">
+              {{ form.active }}
+              <label class="form-check-label" for="{{ form.active.id_for_label }}">
+                Active (available for selection)
+              </label>
+            </div>
+            {{ form.active.errors }}
+          </div>
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center mt-4">
+          <a href="{% url 'drones:drone_safety_profile_list' %}" class="btn btn-outline-secondary">
+            Cancel
+          </a>
+          <button type="submit" class="btn btn-primary">
+            Save Profile
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -7,14 +7,45 @@
     <a href="{% url 'pilot:profile_edit' %}" class="btn btn-warning">{% if profile %}Edit profile{% else %}Create profile{% endif %}</a>
   </div>
   <div class="row g-4">
-    <div class="col-12 col-lg-8"><div class="card shadow-sm h-100"><div class="card-header bg-white"><h2 class="h5 mb-0">Current information</h2></div><div class="card-body">{% if profile.company_logo %}<div class="text-center text-md-start mb-4"><img src="{% url 'pilot:company_logo_download' %}" alt="{{ profile.business_name|default:request.user.get_full_name }} company_logo" class="img-fluid" style="max-width: 260px; max-height: 150px; object-fit: contain;"></div>{% endif %}<dl class="row mb-0">
+    <div class="col-12 col-lg-8"><div class="card shadow-sm"><div class="card-header bg-white"><h2 class="h5 mb-0">Current information</h2></div><div class="card-body">{% if profile.company_logo %}<div class="text-center text-md-start mb-4"><img src="{% url 'pilot:company_logo_download' %}" alt="{{ profile.business_name|default:request.user.get_full_name }} company_logo" class="img-fluid" style="max-width: 260px; max-height: 150px; object-fit: contain;"></div>{% endif %}<dl class="row mb-0">
       <dt class="col-sm-4">Name</dt><dd class="col-sm-8">{{ request.user.get_full_name|default:"Not provided" }}</dd>
       <dt class="col-sm-4">Business</dt><dd class="col-sm-8">{{ profile.business_name|default:"Not provided" }}</dd>
       <dt class="col-sm-4">Email</dt><dd class="col-sm-8">{{ request.user.email }}</dd>
       <dt class="col-sm-4">Phone</dt><dd class="col-sm-8">{{ profile.phone|default:"Not provided" }}</dd>
       <dt class="col-sm-4">Address</dt><dd class="col-sm-8">{% if profile and profile.street_address %}{{ profile.street_address }}<br>{{ profile.city }}, {{ profile.state }} {{ profile.zip_code }}{% else %}Not provided{% endif %}</dd>
       <dt class="col-sm-4">FAA Remote Pilot Certificate</dt><dd class="col-sm-8">{{ profile.faa_certificate_number|default:"Not provided" }}</dd>
-    </dl></div></div></div>
+    </dl></div></div>
+
+      <div class="card shadow-sm mt-4">
+        <div class="card-header bg-white d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-2">
+          <h2 class="h5 mb-0">Active drones</h2>
+          <div class="d-flex flex-wrap gap-2">
+            <a href="{% url 'drones:list' %}" class="btn btn-sm btn-outline-secondary">View all drones</a>
+            <a href="{% url 'drones:create' %}" class="btn btn-sm btn-warning">Add drone</a>
+          </div>
+        </div>
+        <div class="card-body p-0">
+          {% if active_drones %}
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead class="table-light"><tr><th>Drone</th><th class="d-none d-md-table-cell">FAA registration</th><th class="text-end">Actions</th></tr></thead>
+              <tbody>
+                {% for drone in active_drones %}
+                <tr>
+                  <td><div class="fw-semibold">{{ drone.manufacturer }} {{ drone.model }}</div>{% if drone.nickname %}<div class="small text-muted">{{ drone.nickname }}</div>{% endif %}</td>
+                  <td class="d-none d-md-table-cell">{{ drone.faa_registration_number|default:"Not provided" }}</td>
+                  <td class="text-end"><a href="{% url 'drones:detail' drone.pk %}" class="btn btn-sm btn-outline-primary">View details</a></td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <div class="p-4 text-center"><p class="text-muted mb-3">No active drones have been added.</p><a href="{% url 'drones:create' %}" class="btn btn-warning">Add your first drone</a></div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
     <div class="col-12 col-lg-4"><div class="card shadow-sm mb-4"><div class="card-body"><h2 class="h5">Profile completion</h2><div class="progress mb-2" role="progressbar" aria-valuenow="{{ completion_percent }}" aria-valuemin="0" aria-valuemax="100"><div class="progress-bar" style="width: {{ completion_percent }}%">{{ completion_percent }}%</div></div><p class="small text-muted mb-0">Business name is optional and is not included in this percentage.</p></div></div>
     {% if profile %}<div class="card border-danger"><div class="card-body"><h2 class="h6 text-danger">Delete profile data</h2><p class="small">This removes the pilot profile but keeps the login account.</p><a href="{% url 'pilot:profile_delete' %}" class="btn btn-outline-danger btn-sm">Delete profile data</a></div></div>{% endif %}</div>
   </div>

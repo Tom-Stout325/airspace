@@ -222,7 +222,7 @@ class WaiverPlanning(models.Model):
     # -------------------------
     # Aircraft
     # -------------------------
-    aircraft                     = models.ForeignKey("pilot.Aircraft", null=True, blank=True, on_delete=models.SET_NULL, related_name="waiver_planning_entries")
+    aircraft                     = models.ForeignKey("drones.Drone", null=True, blank=True, on_delete=models.SET_NULL, related_name="waiver_planning_entries")
     aircraft_manual              = models.CharField(max_length=255, blank=True, help_text="If needed, manually describe any additional aircraft types.")
 
     # -------------------------
@@ -411,9 +411,8 @@ class WaiverPlanning(models.Model):
         We *don't* overwrite existing notes so you can safely customize them.
         """
         if self.aircraft and not (self.safety_features_notes or "").strip():
-            profile = getattr(self.aircraft, "drone_safety_profile", None)
-            if profile and profile.safety_features:
-                self.safety_features_notes = profile.safety_features
+            if self.aircraft.safety_features:
+                self.safety_features_notes = self.aircraft.safety_features
 
     def clean(self):
         """

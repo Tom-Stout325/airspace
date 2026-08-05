@@ -32,6 +32,7 @@ INSTALLED_APPS = [
     'storages',
     'accounts',
     'pilot',
+    'drones',
     'airspace',
 ]
 

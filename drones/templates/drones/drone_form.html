@@ -1,0 +1,82 @@
+{% extends "index.html" %}
+{% block title %}{% if drone %}Edit Drone{% else %}Add Drone{% endif %} | AirSpace{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+    <div>
+      <h1 class="h2 mb-1">{% if drone %}Edit drone{% else %}Add drone{% endif %}</h1>
+      <p class="text-muted mb-0">Maintain the aircraft information used by your AirSpace waiver workflow.</p>
+    </div>
+    <a href="{% if drone %}{% url 'drones:detail' drone.pk %}{% else %}{% url 'drones:list' %}{% endif %}" class="btn btn-outline-secondary">Cancel</a>
+  </div>
+
+  <form method="post" enctype="multipart/form-data" novalidate>
+    {% csrf_token %}
+    <div class="card shadow-sm">
+      <div class="card-body">
+        {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+        {# Required database fields populated from the selected safety profile. #}
+        {{ form.manufacturer }}
+        {{ form.model }}
+
+        <div class="row g-3">
+          {% for field in form.visible_fields %}
+            <div class="{% if field.name == 'safety_profile' or field.name == 'safety_features' or field.name == 'notes' or field.name == 'faa_certificate' %}col-12{% else %}col-12 col-md-6{% endif %}">
+              <label for="{{ field.id_for_label }}" class="form-label fw-semibold">{{ field.label }}{% if field.field.required %} <span class="text-danger">*</span>{% endif %}</label>
+              {{ field }}
+              {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+              {% for error in field.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+              {% if field.name == 'faa_certificate' and drone.faa_certificate %}<div class="small mt-2">Current file: <a href="{% url 'drones:faa_certificate_download' drone.pk %}">Download FAA certificate</a></div>{% endif %}
+            </div>
+          {% endfor %}
+
+          {# Hidden-field validation errors are surfaced here if form data is tampered with. #}
+          {% for field in form.hidden_fields %}
+            {% for error in field.errors %}<div class="col-12 text-danger small">{{ field.label }}: {{ error }}</div>{% endfor %}
+          {% endfor %}
+        </div>
+      </div>
+      <div class="card-footer bg-white d-flex justify-content-end">
+        <button type="submit" class="btn btn-warning">{% if drone %}Save changes{% else %}Add drone{% endif %}</button>
+      </div>
+    </div>
+  </form>
+</div>
+<script>
+(() => {
+  const profile = document.getElementById('id_safety_profile');
+  const manufacturer = document.getElementById('id_manufacturer');
+  const model = document.getElementById('id_model');
+  const safety = document.getElementById('id_safety_features');
+  if (!profile || !manufacturer || !model || !safety) return;
+
+  const initialProfile = profile.value;
+  let safetyWasEdited = false;
+  safety.addEventListener('input', () => { safetyWasEdited = true; });
+
+  async function applySelectedProfile() {
+    if (!profile.value) return;
+
+    const params = new URLSearchParams({profile_id: profile.value});
+    const response = await fetch(
+      `{% url 'drones:profile_suggest' %}?${params.toString()}`,
+      {headers: {'X-Requested-With': 'XMLHttpRequest'}}
+    );
+    if (!response.ok) return;
+
+    const data = await response.json();
+    if (!data.found) return;
+
+    manufacturer.value = data.brand || '';
+    model.value = data.model_name || '';
+
+    const profileChanged = profile.value !== initialProfile;
+    if (!safetyWasEdited && (!safety.value.trim() || profileChanged)) {
+      safety.value = data.safety_features || '';
+    }
+  }
+
+  profile.addEventListener('change', applySelectedProfile);
+})();
+</script>
+{% endblock %}

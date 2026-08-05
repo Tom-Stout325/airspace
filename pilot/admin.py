@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Aircraft, PilotProfile
+from .models import PilotProfile
 
 
 @admin.register(PilotProfile)
@@ -8,9 +8,3 @@ class PilotProfileAdmin(admin.ModelAdmin):
     list_display = ("user", "faa_certificate_number", "total_flight_hours", "updated_at")
     search_fields = ("user__email", "user__first_name", "user__last_name", "faa_certificate_number")
 
-
-@admin.register(Aircraft)
-class AircraftAdmin(admin.ModelAdmin):
-    list_display = ("brand", "model", "registration_number", "user", "active")
-    list_filter = ("active",)
-    search_fields = ("brand", "model", "registration_number", "user__email")

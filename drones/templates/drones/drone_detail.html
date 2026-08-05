@@ -1,0 +1,29 @@
+{% extends "index.html" %}
+{% block title %}{{ drone }} | AirSpace{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+    <div><h1 class="h2 mb-1">{{ drone.manufacturer }} {{ drone.model }}</h1>{% if drone.nickname %}<p class="text-muted mb-0">{{ drone.nickname }}</p>{% endif %}</div>
+    <div class="d-flex flex-wrap gap-2"><a href="{% url 'drones:list' %}" class="btn btn-outline-secondary">All drones</a><a href="{% url 'drones:update' drone.pk %}" class="btn btn-warning">Edit drone</a></div>
+  </div>
+  <div class="row g-4">
+    <div class="col-12 col-lg-8">
+      <div class="card shadow-sm"><div class="card-header bg-white"><h2 class="h5 mb-0">Aircraft details</h2></div><div class="card-body"><dl class="row mb-0">
+        <dt class="col-sm-5">Manufacturer</dt><dd class="col-sm-7">{{ drone.manufacturer }}</dd>
+        <dt class="col-sm-5">Model</dt><dd class="col-sm-7">{{ drone.model }}</dd>
+        <dt class="col-sm-5">Nickname</dt><dd class="col-sm-7">{{ drone.nickname|default:"Not provided" }}</dd>
+        <dt class="col-sm-5">Serial number</dt><dd class="col-sm-7">{{ drone.serial_number }}</dd>
+        <dt class="col-sm-5">FAA registration number</dt><dd class="col-sm-7">{{ drone.faa_registration_number|default:"Not provided" }}</dd>
+        <dt class="col-sm-5">Registration date</dt><dd class="col-sm-7">{{ drone.registration_date|date:"F j, Y"|default:"Not provided" }}</dd>
+        <dt class="col-sm-5">Registration expiration</dt><dd class="col-sm-7">{{ drone.registration_expiration|date:"F j, Y"|default:"Not provided" }}</dd>
+        <dt class="col-sm-5">Date purchased</dt><dd class="col-sm-7">{{ drone.date_purchased|date:"F j, Y"|default:"Not provided" }}</dd>
+        <dt class="col-sm-5">Status</dt><dd class="col-sm-7">{{ drone.get_status_display }}</dd>
+        <dt class="col-sm-5">FAA certificate</dt><dd class="col-sm-7">{% if drone.faa_certificate %}<a href="{% url 'drones:faa_certificate_download' drone.pk %}">Download certificate</a>{% else %}Not provided{% endif %}</dd>
+      </dl></div></div>
+      <div class="card shadow-sm mt-4"><div class="card-header bg-white"><h2 class="h5 mb-0">Safety features</h2></div><div class="card-body">{% if drone.safety_profile %}<p class="small text-muted">Source profile: {{ drone.safety_profile.full_display_name }}</p>{% endif %}{{ drone.safety_features|default:"No safety features have been entered."|linebreaks }}</div></div>
+      <div class="card shadow-sm mt-4"><div class="card-header bg-white"><h2 class="h5 mb-0">Notes</h2></div><div class="card-body">{{ drone.notes|default:"No notes have been entered."|linebreaks }}</div></div>
+    </div>
+    <div class="col-12 col-lg-4"><div class="card border-danger"><div class="card-body"><h2 class="h6 text-danger">Delete drone</h2><p class="small">Deleting this drone cannot be undone. Existing waiver records will retain an empty aircraft reference.</p><a href="{% url 'drones:delete' drone.pk %}" class="btn btn-outline-danger btn-sm">Delete drone</a></div></div></div>
+  </div>
+</div>
+{% endblock %}

@@ -8,7 +8,7 @@ from dal_select2.widgets import ModelSelect2
 from django.contrib import messages
 from django.utils import timezone
 
-from pilot.models import Aircraft
+from drones.models import Drone
 from pilot.models import PilotProfile
 from .models import Airport, WaiverApplication, WaiverPlanning
 
@@ -432,8 +432,8 @@ class WaiverPlanningForm(forms.ModelForm):
 
 
         if "aircraft" in self.fields:
-            qs = Aircraft.objects.filter(active=True)
-            qs = _qs_user_scoped(qs, self.user).order_by("brand", "model")
+            qs = Drone.objects.filter(status=Drone.Status.ACTIVE)
+            qs = _qs_user_scoped(qs, self.user).order_by("manufacturer", "model")
             self.fields["aircraft"].queryset = qs
 
 
@@ -470,7 +470,7 @@ class WaiverPlanningForm(forms.ModelForm):
             if not raw or not raw.isdigit():
                 return None
 
-            qs = Aircraft.objects.filter(pk=int(raw))
+            qs = Drone.objects.filter(pk=int(raw))
             qs = _qs_user_scoped(qs, self.user)
             return qs.first()
 
@@ -583,9 +583,8 @@ class WaiverPlanningForm(forms.ModelForm):
 
         # Safety features fallback (server-side)
         if instance.aircraft and not (instance.safety_features_notes or "").strip():
-            profile = getattr(instance.aircraft, "drone_safety_profile", None)
-            if profile and (profile.safety_features or "").strip():
-                instance.safety_features_notes = profile.safety_features
+            if (instance.aircraft.safety_features or "").strip():
+                instance.safety_features_notes = instance.aircraft.safety_features
 
         # Distance: allow manual entry ONLY when we're NOT in auto-compute mode.
         if not self._should_lock_distance(self.cleaned_data):
@@ -650,7 +649,7 @@ class WaiverReadinessForm(forms.Form):
     # -------------------------
     # Aircraft
     # -------------------------
-    aircraft                = forms.ModelChoiceField(required=False, queryset=Aircraft.objects.none(), help_text="Select a drone from your equipment list (optional).")
+    aircraft                = forms.ModelChoiceField(required=False, queryset=Drone.objects.none(), help_text="Select a drone from your equipment list (optional).")
     aircraft_manual         = forms.CharField(required=False, help_text="If needed, manually describe any additional aircraft types.")
 
     # -------------------------
@@ -755,7 +754,7 @@ class WaiverReadinessForm(forms.Form):
 
         # User-scoped dropdowns
         if user is not None:
-            self.fields["aircraft"].queryset = Aircraft.objects.filter(user=user, active=True).order_by("brand", "model", "id")
+            self.fields["aircraft"].queryset = Drone.objects.filter(user=user, status=Drone.Status.ACTIVE).order_by("manufacturer", "model", "id")
             self.fields["pilot_profile"].queryset = PilotProfile.objects.filter(user=user).order_by("id")
 
 

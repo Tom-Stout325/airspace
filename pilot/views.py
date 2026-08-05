@@ -5,6 +5,8 @@ from django.shortcuts import redirect, render
 from django.views.decorators.http import require_http_methods
 
 from .forms import PilotProfileForm
+from drones.models import Drone
+
 from .models import PilotProfile
 
 
@@ -36,6 +38,10 @@ def dashboard(request):
     context = {
         "profile": profile,
         "completion_percent": completion_percent,
+        "active_drones": Drone.objects.filter(
+            user=request.user,
+            status=Drone.Status.ACTIVE,
+        ).order_by("manufacturer", "model", "nickname")[:5],
     }
 
     return render(request, "pilot/dashboard.html", context)
