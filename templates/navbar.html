@@ -1,0 +1,117 @@
+<nav
+    class="navbar navbar-expand-lg bg-white border-bottom"
+    aria-label="Primary navigation"
+>
+    <div class="container">
+
+        <a
+            class="navbar-brand fw-bold"
+            href="{% url 'accounts:home' %}"
+            aria-label="AirSpace home"
+        >
+            AirSpace
+        </a>
+
+        <button
+            class="navbar-toggler"
+            type="button"
+            data-bs-toggle="collapse"
+            data-bs-target="#mainNav"
+            aria-controls="mainNav"
+            aria-expanded="false"
+            aria-label="Toggle navigation"
+        >
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div
+            class="collapse navbar-collapse"
+            id="mainNav"
+        >
+            {% if request.user.is_authenticated %}
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+
+                    <li class="nav-item">
+                        <a
+                            class="nav-link"
+                            href="{% url 'airspace:airspace_portal' %}"
+                        >
+                            AirSpace Portal
+                        </a>
+                    </li>
+
+                    <li class="nav-item">
+                        <a
+                            class="nav-link"
+                            href="{% url 'pilot:dashboard' %}"
+                        >
+                            Pilot Profile
+                        </a>
+                    </li>
+
+                    <li class="nav-item">
+                        <a
+                            class="nav-link"
+                            href="{% url 'airspace:waiver_planning_list' %}"
+                        >
+                            Waivers
+                        </a>
+                    </li>
+
+                    <li class="nav-item">
+                        <a
+                            class="nav-link"
+                            href="{% url 'airspace:airspace_guide' %}"
+                        >
+                            Waiver Guide
+                        </a>
+                    </li>
+
+                    {% if request.user.is_staff %}
+                        <li class="nav-item">
+                            <a
+                                class="nav-link"
+                                href="{% url 'accounts:invitation_list' %}"
+                            >
+                                Invitations
+                            </a>
+                        </li>
+                    {% endif %}
+                </ul>
+
+                <div
+                    class="d-flex flex-column flex-lg-row align-items-lg-center gap-2 py-3 py-lg-0"
+                >
+                    <span class="navbar-text small text-secondary">
+                        {{ request.user.email }}
+                    </span>
+
+                    <form
+                        method="post"
+                        action="{% url 'accounts:logout' %}"
+                        class="d-inline"
+                    >
+                        {% csrf_token %}
+
+                        <button
+                            type="submit"
+                            class="btn btn-sm btn-outline-dark"
+                        >
+                            Log out
+                        </button>
+                    </form>
+                </div>
+
+            {% else %}
+                <div class="ms-auto py-3 py-lg-0">
+                    <a
+                        class="btn btn-sm btn-outline-dark"
+                        href="{% url 'accounts:login' %}"
+                    >
+                        Sign in
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</nav>

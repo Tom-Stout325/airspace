@@ -28,7 +28,7 @@ app_name = "airspace"
 
 urlpatterns = [
     path("portal/", AirspacePortalView.as_view(), name="airspace_portal"),
-    path("guide", airspace_helper, name="airspace_guide"),
+    path("guide/", airspace_helper, name="airspace_guide"),
     path("waiver/planning/new/", waiver_planning_new, name="waiver_planning_new"),
     path("waiver/equipment-checklist/", WaiverEquipmentChecklistView.as_view(), name="waiver_equipment_checklist",),
 
