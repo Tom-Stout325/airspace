@@ -19,6 +19,59 @@
       box-shadow: 0 0 0 0 rgba(255, 193, 7, 0);
     }
   }
+
+  .workflow-card {
+    border: 2px solid rgba(70, 130, 180, 0.35);
+  }
+
+  .workflow-next-step {
+    border-left: 0.3rem solid SteelBlue;
+    background: var(--bs-tertiary-bg);
+  }
+
+  .workflow-step {
+    position: relative;
+    padding: 0.8rem 0 0.8rem 2.1rem;
+    border-bottom: 1px solid var(--bs-border-color);
+  }
+
+  .workflow-step:last-child {
+    border-bottom: 0;
+  }
+
+  .workflow-step-marker {
+    position: absolute;
+    top: 0.86rem;
+    left: 0.2rem;
+    display: inline-flex;
+    width: 1.35rem;
+    height: 1.35rem;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid var(--bs-secondary-color);
+    border-radius: 50%;
+    background: var(--bs-body-bg);
+    color: var(--bs-secondary-color);
+    font-size: 0.72rem;
+    font-weight: 700;
+  }
+
+  .workflow-step.is-complete .workflow-step-marker {
+    border-color: var(--bs-success);
+    background: var(--bs-success);
+    color: #fff;
+  }
+
+  .workflow-step.is-active .workflow-step-marker {
+    border-color: SteelBlue;
+    background: SteelBlue;
+    color: #fff;
+    box-shadow: 0 0 0 0.2rem rgba(70, 130, 180, 0.2);
+  }
+
+  .workflow-step.is-active .workflow-step-title {
+    color: SteelBlue;
+  }
 </style>
 
 <div class="container py-4">
@@ -29,6 +82,32 @@
         {{ operation.get_status_display }} · {{ operation.start_date }}
         {% if operation.end_date %} through {{ operation.end_date }}{% endif %}
       </p>
+
+      {# AIRSPACE_HEADER_WAIVER_TYPE #}
+      {% with approval=operation.approvals.all|first %}
+        {% if approval %}
+          <div class="mt-2">
+            <div class="small text-muted">
+              FAA Application Type:
+              <strong>
+                {% if approval.approval_type.category == "airspace" %}
+                  Airspace Authorization
+                {% elif approval.approval_type.category == "operational_waiver" %}
+                  Operational Waiver
+                {% else %}
+                  {{ approval.approval_type.get_category_display }}
+                {% endif %}
+              </strong>
+            </div>
+            <div class="fw-semibold">
+              {% if approval.approval_type.regulation %}
+                {{ approval.approval_type.regulation }} —
+              {% endif %}
+              {{ approval.approval_type.name }}
+            </div>
+          </div>
+        {% endif %}
+      {% endwith %}
     </div>
 
     <div class="d-flex flex-wrap gap-2">
@@ -225,6 +304,113 @@
     </div>
 
     <div class="col-12 col-lg-5">
+      <div class="card shadow-sm workflow-card mb-4">
+        <div class="card-header" style="background: SteelBlue; color: white;">
+          <strong>Next Step</strong>
+        </div>
+
+        <div class="card-body">
+          {% if planning_complete %}
+            <div class="d-flex align-items-center gap-2 mb-3">
+              <span class="badge text-bg-success">Planning Complete</span>
+              <span class="small text-muted">
+                The operation plan contains all required planning sections.
+              </span>
+            </div>
+          {% endif %}
+
+          <div class="workflow-next-step p-3">
+            <h2 class="h5 mb-2">{{ next_action.title }}</h2>
+
+            {% if next_approval %}
+              <div class="small fw-semibold text-muted mb-2">
+                {{ next_approval.approval_type }}
+              </div>
+            {% endif %}
+
+            <p class="mb-3">{{ next_action.description }}</p>
+
+            {% if next_action.url_args|length == 2 %}
+              <a
+                class="btn {{ next_action.button_class }}"
+                href="{% url next_action.url_name next_action.url_args.0 next_action.url_args.1 %}{{ next_action.fragment }}"
+              >
+                {{ next_action.button_label }}
+              </a>
+            {% else %}
+              <a
+                class="btn {{ next_action.button_class }}"
+                href="{% url next_action.url_name next_action.url_args.0 %}{{ next_action.fragment }}"
+              >
+                {{ next_action.button_label }}
+              </a>
+            {% endif %}
+          </div>
+
+          {% if planning_complete and not all_conops_complete %}
+            <div class="alert alert-info mt-3 mb-0">
+              <strong>Your planning documentation is complete.</strong>
+              AirSpace can now generate the CONOPS using the saved operation,
+              pilot, aircraft, location, risk, emergency, and FAA approval
+              information.
+            </div>
+          {% elif all_conops_complete and not all_submitted %}
+            <div class="alert alert-info mt-3 mb-0">
+              <strong>Your planning and CONOPS review are complete.</strong>
+              Open FAA DroneZone in a separate browser window and use the
+              planning PDF and reviewed CONOPS as your working reference.
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="card shadow-sm mb-4">
+        <div class="card-header" style="background: SteelBlue; color: white;">
+          <strong>Operation Workflow</strong>
+        </div>
+
+        <div class="card-body">
+          <div class="small text-muted mb-2">
+            {{ completed_workflow_steps }} of
+            {{ total_workflow_steps }} workflow phases complete
+          </div>
+
+          <div class="list-group list-group-flush">
+            {% for step in workflow_steps %}
+              <div
+                class="workflow-step{% if step.complete %} is-complete{% elif step.active %} is-active{% endif %}"
+              >
+                <span class="workflow-step-marker">
+                  {% if step.complete %}
+                    ✓
+                  {% else %}
+                    {{ forloop.counter }}
+                  {% endif %}
+                </span>
+
+                <div class="d-flex justify-content-between gap-2">
+                  <strong class="workflow-step-title">
+                    {{ step.title }}
+                  </strong>
+
+                  {% if step.complete %}
+                    <span class="badge text-bg-success">Complete</span>
+                  {% elif step.active %}
+                    <span class="badge text-bg-primary">Current</span>
+                  {% else %}
+                    <span class="badge text-bg-secondary">Pending</span>
+                  {% endif %}
+                </div>
+
+                <div class="small text-muted mt-1">
+                  {{ step.description }}
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
       <div class="card shadow-sm mb-4">
         <div class="card-header" style="background: SteelBlue; color: white;">
           <strong>Planning Completion</strong>

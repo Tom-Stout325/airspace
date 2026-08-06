@@ -452,9 +452,12 @@
       </div>
       <div class="operation-section-body">
         <div class="row g-3">
+          {% include "airspace/partials/_boolean_field.html" with field=form.uses_standard_part_107_weather_minimums column_class="col-12" %}
           {% include "airspace/partials/_field.html" with field=form.max_wind_mph %}
           {% include "airspace/partials/_field.html" with field=form.min_visibility_sm %}
           {% include "airspace/partials/_field.html" with field=form.minimum_cloud_ceiling_ft %}
+          {% include "airspace/partials/_field.html" with field=form.minimum_distance_below_clouds_ft %}
+          {% include "airspace/partials/_field.html" with field=form.minimum_horizontal_cloud_clearance_ft %}
           {% include "airspace/partials/_field.html" with field=form.weather_source %}
           {% include "airspace/partials/_field.html" with field=form.weather_go_nogo column_class="col-12" %}
           {% include "airspace/partials/_field.html" with field=form.night_lighting_description column_class="col-12" %}
@@ -491,9 +494,49 @@
   </form>
 </div>
 
+{{ pilot_profile_data|json_script:"pilot-profile-data" }}
+
 <script>
 (() => {
   "use strict";
+
+  const pilotDataElement = document.getElementById("pilot-profile-data");
+  const pilotSelect = document.getElementById("id_pilot_profile");
+  const pilotCertificate = document.getElementById("id_pilot_cert_manual");
+  if (pilotDataElement && pilotSelect && pilotCertificate) {
+    const pilotProfiles = JSON.parse(pilotDataElement.textContent);
+    const populatePilotCertificate = () => {
+      const selected = pilotProfiles[pilotSelect.value];
+      if (selected && selected.faa_certificate_number) {
+        pilotCertificate.value = selected.faa_certificate_number;
+      }
+    };
+    pilotSelect.addEventListener("change", populatePilotCertificate);
+    populatePilotCertificate();
+  }
+
+  const standardWeather = document.getElementById(
+    "id_uses_standard_part_107_weather_minimums"
+  );
+  const weatherFields = [
+    [document.getElementById("id_min_visibility_sm"), "3.0"],
+    [document.getElementById("id_minimum_distance_below_clouds_ft"), "500"],
+    [document.getElementById("id_minimum_horizontal_cloud_clearance_ft"), "2000"],
+  ];
+  const updateStandardWeather = () => {
+    if (!standardWeather) return;
+    weatherFields.forEach(([field, value]) => {
+      if (!field) return;
+      if (standardWeather.checked) field.value = value;
+      field.readOnly = standardWeather.checked;
+      field.setAttribute(
+        "aria-readonly",
+        standardWeather.checked ? "true" : "false"
+      );
+    });
+  };
+  standardWeather?.addEventListener("change", updateStandardWeather);
+  updateStandardWeather();
 
   const locationSection = document.getElementById("operation-location-section");
   if (!locationSection) {

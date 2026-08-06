@@ -1,161 +1,49 @@
 {% extends "index.html" %}
-
 {% block title %}{{ page_title }} | AirSpace{% endblock %}
-
 {% block content %}
 <style>
-  .approval-form-shell {
-    max-width: 900px;
-  }
-
-  .approval-form-card {
-    border: 1px solid var(--bs-border-color);
-    border-radius: 0.75rem;
-    overflow: hidden;
-  }
-
-  .approval-form-header {
-    padding: 1rem 1.25rem;
-    background: SteelBlue;
-    color: white;
-  }
-
-  .approval-form-header h1 {
-    color: white;
-  }
-
-  .approval-form-header p {
-    color: rgba(255, 255, 255, 0.88);
-  }
-
-  .regulation-panel {
-    border-left: 0.25rem solid SteelBlue;
-    background: var(--bs-tertiary-bg);
-  }
-
-  textarea.form-control {
-    min-height: 8rem;
-  }
+  .approval-form-shell{max-width:980px}.approval-form-card{border:1px solid var(--bs-border-color);border-radius:.75rem;overflow:hidden}
+  .approval-form-header{padding:1rem 1.25rem;background:SteelBlue;color:#fff}.approval-form-header h1{color:#fff}
+  .regulation-panel,.builder-panel{border-left:.25rem solid SteelBlue;background:var(--bs-tertiary-bg)}
+  .builder-choice-grid{display:grid;grid-template-columns:1fr;gap:.55rem}.builder-choice{display:flex;align-items:flex-start;gap:.5rem;padding:.6rem .7rem;border:1px solid var(--bs-border-color);border-radius:.5rem;background:var(--bs-body-bg)}
+  textarea.form-control{min-height:8rem}@media(min-width:768px){.builder-choice-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
-
 <div class="container approval-form-shell py-4">
-  <form method="post" novalidate>
-    {% csrf_token %}
+<form method="post" novalidate>{% csrf_token %}
+<div class="card approval-form-card shadow-sm">
+<div class="approval-form-header"><h1 class="h3 mb-1">{{ page_title }}</h1><p class="mb-0">{{ operation.operation_title }}</p></div>
+<div class="card-body p-4">
+{% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
 
-    <div class="card approval-form-card shadow-sm">
-      <div class="approval-form-header">
-        <h1 class="h3 mb-1">{{ page_title }}</h1>
-        <p class="mb-0">{{ operation.operation_title }}</p>
-      </div>
+<div class="mb-4"><label class="form-label fw-semibold" for="{{ form.approval_type.id_for_label }}">{{ form.approval_type.label }}</label>{{ form.approval_type }}{{ form.approval_type.errors }}<div class="form-text">{{ form.approval_type.help_text }}</div><div class="alert regulation-panel mt-3 mb-0" id="approval-type-details"></div></div>
+<div class="mb-4"><label class="form-label fw-semibold" for="{{ form.requested_operation.id_for_label }}">{{ form.requested_operation.label }}</label>{{ form.requested_operation }}{{ form.requested_operation.errors }}<div class="form-text">{{ form.requested_operation.help_text }}</div></div>
 
-      <div class="card-body p-4">
-        {% if form.non_field_errors %}
-          <div class="alert alert-danger">
-            {{ form.non_field_errors }}
-          </div>
-        {% endif %}
-
-        <div class="row g-4">
-          {% for field in form %}
-            <div class="col-12">
-              <label
-                class="form-label fw-semibold"
-                for="{{ field.id_for_label }}"
-              >
-                {{ field.label }}
-                {% if field.field.required %}
-                  <span class="text-danger" aria-hidden="true">*</span>
-                {% endif %}
-              </label>
-
-              {{ field }}
-
-              {% for error in field.errors %}
-                <div class="invalid-feedback d-block">{{ error }}</div>
-              {% endfor %}
-
-              {% if field.help_text %}
-                <div class="form-text">{{ field.help_text }}</div>
-              {% endif %}
-
-              {% if field.name == "approval_type" %}
-                <div
-                  class="alert regulation-panel mt-3 mb-0"
-                  id="approval-type-details"
-                  role="status"
-                  aria-live="polite"
-                >
-                  Select a waiver or approval type to display its associated
-                  regulation and description.
-                </div>
-              {% endif %}
-            </div>
-          {% endfor %}
-        </div>
-      </div>
-
-      <div class="card-footer d-flex flex-column flex-sm-row justify-content-end gap-2 p-3">
-        <a
-          class="btn btn-outline-secondary"
-          href="{% url 'airspace:operations_planning_detail' operation.pk %}"
-        >
-          Cancel
-        </a>
-        <button class="btn btn-warning" type="submit">
-          Save Approval Planning
-        </button>
-      </div>
-    </div>
-  </form>
+<div class="mb-4"><label class="form-label fw-semibold" for="{{ form.safety_justification.id_for_label }}">{{ form.safety_justification.label }}</label>{{ form.safety_justification }}{{ form.safety_justification.errors }}<div class="form-text">{{ form.safety_justification.help_text }}</div>
+{% if aircraft_safety_statement %}<div class="alert builder-panel mt-3 mb-0"><strong>Aircraft safety-feature statement</strong><p class="small mt-1 mb-2">Built from the assigned aircraft safety profiles.</p><button class="btn btn-sm btn-outline-primary" id="insert-aircraft-safety" type="button">Insert Current Aircraft Safety Features</button></div>{% else %}<div class="alert alert-warning mt-3">No assigned aircraft safety features were found.</div>{% endif %}
 </div>
 
+<div class="mb-4"><fieldset class="builder-panel p-3"><legend class="h6">{{ form.risk_mitigation_options.label }}</legend><div class="form-text mb-3">{{ form.risk_mitigation_options.help_text }}</div><div class="builder-choice-grid">{% for choice in form.risk_mitigation_options %}<label class="builder-choice" for="{{ choice.id_for_label }}">{{ choice.tag }}<span>{{ choice.choice_label }}</span></label>{% endfor %}</div><button class="btn btn-sm btn-outline-primary mt-3" id="generate-risk-statement" type="button">Generate Risk-Mitigation Statement</button></fieldset>
+<label class="form-label fw-semibold mt-3" for="{{ form.risk_mitigations.id_for_label }}">{{ form.risk_mitigations.label }}</label>{{ form.risk_mitigations }}{{ form.risk_mitigations.errors }}<div class="form-text">{{ form.risk_mitigations.help_text }}</div></div>
+
+<div class="mb-4" id="equivalent-safety-section"><fieldset class="builder-panel p-3"><legend class="h6">{{ form.equivalent_safety_options.label }}</legend><div class="form-text mb-3">{{ form.equivalent_safety_options.help_text }}</div><div class="builder-choice-grid">{% for choice in form.equivalent_safety_options %}<label class="builder-choice" for="{{ choice.id_for_label }}">{{ choice.tag }}<span>{{ choice.choice_label }}</span></label>{% endfor %}</div><button class="btn btn-sm btn-outline-primary mt-3" id="generate-equivalent-statement" type="button">Generate Equivalent-Safety Statement</button></fieldset>
+<label class="form-label fw-semibold mt-3" for="{{ form.equivalent_level_of_safety.id_for_label }}">{{ form.equivalent_level_of_safety.label }}</label>{{ form.equivalent_level_of_safety }}{{ form.equivalent_level_of_safety.errors }}<div class="form-text">{{ form.equivalent_level_of_safety.help_text }}</div></div>
+<div class="alert alert-info d-none" id="controlled-airspace-note">A standard controlled-airspace authorization is not a Part 107 operational waiver, so AirSpace does not require an Equivalent Level of Safety narrative.</div>
+</div>
+<div class="card-footer d-flex justify-content-end gap-2 p-3"><a class="btn btn-outline-secondary" href="{% url 'airspace:operations_planning_detail' operation.pk %}">Cancel</a><button class="btn btn-warning" type="submit">Save Approval Planning</button></div>
+</div></form></div>
+
 {{ approval_type_regulations|json_script:"approval-type-regulations" }}
-
+{{ aircraft_safety_statement|json_script:"aircraft-safety-statement" }}
 <script>
-(() => {
-  "use strict";
-
-  const select = document.getElementById("id_approval_type");
-  const panel = document.getElementById("approval-type-details");
-  const dataElement = document.getElementById(
-    "approval-type-regulations"
-  );
-
-  if (!select || !panel || !dataElement) {
-    return;
-  }
-
-  const approvalTypes = JSON.parse(dataElement.textContent);
-
-  function updateApprovalTypeDetails() {
-    const details = approvalTypes[select.value];
-
-    if (!details) {
-      panel.textContent =
-        "Select a waiver or approval type to display its associated " +
-        "regulation and description.";
-      return;
-    }
-
-    panel.replaceChildren();
-
-    const regulation = document.createElement("div");
-    regulation.className = "fw-semibold";
-    regulation.textContent = details.regulation
-      ? `Associated regulation: ${details.regulation}`
-      : "No regulation number is stored for this approval type.";
-    panel.appendChild(regulation);
-
-    if (details.description) {
-      const description = document.createElement("div");
-      description.className = "small mt-1";
-      description.textContent = details.description;
-      panel.appendChild(description);
-    }
-  }
-
-  select.addEventListener("change", updateApprovalTypeDetails);
-  updateApprovalTypeDetails();
+(()=>{"use strict";
+const select=document.getElementById("id_approval_type"),panel=document.getElementById("approval-type-details"),data=JSON.parse(document.getElementById("approval-type-regulations").textContent),eq=document.getElementById("equivalent-safety-section"),note=document.getElementById("controlled-airspace-note"),eqText=document.getElementById("id_equivalent_level_of_safety");
+function updateType(){const d=data[select.value];panel.replaceChildren();panel.textContent=d?(d.regulation?`Associated regulation: ${d.regulation}`:"No regulation stored."):"Select a waiver or approval type.";if(d?.description){const x=document.createElement("div");x.className="small mt-1";x.textContent=d.description;panel.appendChild(x)}const standard=Boolean(d?.is_standard_controlled_airspace);eq.classList.toggle("d-none",standard);note.classList.toggle("d-none",!standard);if(standard)eqText.value=""}
+function labels(name){return Array.from(document.querySelectorAll(`input[name="${name}"]:checked`)).map(i=>document.querySelector(`label[for="${i.id}"] span`)?.textContent.trim()||i.value)}
+function list(a){return a.length<2?(a[0]||""):a.length===2?`${a[0]} and ${a[1]}`:`${a.slice(0,-1).join(", ")}, and ${a.at(-1)}`}
+document.getElementById("generate-risk-statement")?.addEventListener("click",()=>{const a=labels("risk_mitigation_options");if(!a.length)return alert("Select at least one risk mitigation.");document.getElementById("id_risk_mitigations").value=`The operation will reduce identified ground and air risks through ${list(a).toLowerCase()}. The RPIC will verify these controls before flight and will suspend or terminate the operation whenever the controls cannot be maintained.`});
+document.getElementById("generate-equivalent-statement")?.addEventListener("click",()=>{const a=labels("equivalent_safety_options");if(!a.length)return alert("Select at least one equivalent-safety control.");eqText.value=`Although the proposed operation requires relief from the standard regulatory requirement, the use of ${list(a).toLowerCase()} provides a level of safety equal to or greater than compliance with the underlying rule. These controls will be established before flight and continuously monitored by the RPIC and crew.`});
+document.getElementById("insert-aircraft-safety")?.addEventListener("click",()=>{const s=JSON.parse(document.getElementById("aircraft-safety-statement").textContent),t=document.getElementById("id_safety_justification");if(t.value.trim()&&!confirm("Replace the existing Safety Justification?"))return;t.value=s});
+select.addEventListener("change",updateType);updateType();
 })();
 </script>
 {% endblock %}

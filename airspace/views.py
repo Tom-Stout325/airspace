@@ -78,6 +78,302 @@ def operations_planning_edit(request, pk):
     return render(request, "airspace/operations_planning_form.html", {"form": form, "operation": operation, "page_title": "Edit operation plan"})
 
 
+def _approval_conops_state(approval):
+    """
+    Return the CONOPS state for one required FAA approval.
+
+    ApprovalApplication is unique per approval, but the code remains
+    defensive in case legacy data exists before the uniqueness constraint.
+    """
+    application = next(iter(approval.applications.all()), None)
+
+    if application is None:
+        return {
+            "application": None,
+            "exists": False,
+            "complete": False,
+            "complete_count": 0,
+            "total_count": 0,
+        }
+
+    sections = list(application.conops_sections.all())
+    total_count = len(sections)
+    complete_count = sum(
+        1 for section in sections if section.is_complete
+    )
+
+    return {
+        "application": application,
+        "exists": total_count > 0,
+        "complete": (
+            total_count > 0
+            and complete_count == total_count
+        ),
+        "complete_count": complete_count,
+        "total_count": total_count,
+    }
+
+
+def _operation_workflow_context(operation):
+    approvals = list(operation.approvals.all())
+    planning_complete = operation.completion_percentage == 100
+
+    approval_states = []
+    for approval in approvals:
+        approval_states.append(
+            {
+                "approval": approval,
+                "conops": _approval_conops_state(approval),
+            }
+        )
+
+    all_conops_exist = bool(approval_states) and all(
+        item["conops"]["exists"] for item in approval_states
+    )
+    all_conops_complete = bool(approval_states) and all(
+        item["conops"]["complete"] for item in approval_states
+    )
+
+    submitted_statuses = {
+        "submitted",
+        "faa_review",
+        "additional_information",
+        "approved",
+        "denied",
+        "expired",
+        "withdrawn",
+    }
+    any_submitted = any(
+        item["approval"].status in submitted_statuses
+        or bool(item["approval"].faa_tracking_number)
+        or item["approval"].submitted_at is not None
+        for item in approval_states
+    )
+    all_submitted = bool(approval_states) and all(
+        item["approval"].status in submitted_statuses
+        or bool(item["approval"].faa_tracking_number)
+        or item["approval"].submitted_at is not None
+        for item in approval_states
+    )
+    all_approved = bool(approval_states) and all(
+        item["approval"].status == "approved"
+        for item in approval_states
+    )
+
+    workflow_steps = [
+        {
+            "key": "planning",
+            "title": "Operation Planning",
+            "complete": planning_complete,
+            "active": not planning_complete,
+            "description": (
+                "Complete the operation, pilot, location, aircraft, risk, "
+                "emergency, and approval-planning sections."
+            ),
+        },
+        {
+            "key": "conops",
+            "title": "CONOPS Review",
+            "complete": all_conops_complete,
+            "active": planning_complete and not all_conops_complete,
+            "description": (
+                "Generate and review a CONOPS for each required FAA "
+                "waiver or approval."
+            ),
+        },
+        {
+            "key": "submission",
+            "title": "FAA Submission",
+            "complete": all_submitted,
+            "active": all_conops_complete and not all_submitted,
+            "description": (
+                "Submit through FAA DroneZone, then record the submission "
+                "date and FAA tracking number."
+            ),
+        },
+        {
+            "key": "approval",
+            "title": "FAA Decision",
+            "complete": all_approved,
+            "active": any_submitted and not all_approved,
+            "description": (
+                "Track FAA review, respond to requests, and upload the "
+                "issued approval when received."
+            ),
+        },
+        {
+            "key": "operation",
+            "title": "Flight Operation",
+            "complete": False,
+            "active": all_approved,
+            "description": (
+                "Future phase: preflight readiness, flight execution, and "
+                "post-flight records."
+            ),
+        },
+    ]
+
+    next_action = None
+    next_approval = None
+
+    if not planning_complete:
+        next_action = {
+            "title": "Complete Operation Planning",
+            "description": (
+                "Finish the items marked Needs Attention before generating "
+                "FAA submission documents."
+            ),
+            "url_name": "airspace:operations_planning_edit",
+            "url_args": [operation.pk],
+            "fragment": "",
+            "button_label": "Continue Planning",
+            "button_class": "btn-warning",
+        }
+    elif not approvals:
+        next_action = {
+            "title": "Add the Required FAA Approval",
+            "description": (
+                "Planning is complete, but no FAA waiver or approval has "
+                "been selected for this operation."
+            ),
+            "url_name": "airspace:operation_approval_add",
+            "url_args": [operation.pk],
+            "fragment": "",
+            "button_label": "Add Waiver / Approval",
+            "button_class": "btn-success",
+        }
+    else:
+        for item in approval_states:
+            if not item["conops"]["exists"]:
+                next_approval = item["approval"]
+                next_action = {
+                    "title": "Build the CONOPS",
+                    "description": (
+                        "Your operation plan is complete. Generate the "
+                        "CONOPS for the next required FAA approval, then "
+                        "review each section before submission."
+                    ),
+                    "url_name": "airspace:operation_conops_review",
+                    "url_args": [
+                        operation.pk,
+                        item["approval"].pk,
+                    ],
+                    "fragment": "",
+                    "button_label": "Build CONOPS",
+                    "button_class": "btn-success",
+                }
+                break
+
+        if next_action is None:
+            for item in approval_states:
+                if not item["conops"]["complete"]:
+                    next_approval = item["approval"]
+                    next_action = {
+                        "title": "Review and Complete the CONOPS",
+                        "description": (
+                            "A CONOPS draft exists, but one or more sections "
+                            "still need review and confirmation."
+                        ),
+                        "url_name": "airspace:operation_conops_review",
+                        "url_args": [
+                            operation.pk,
+                            item["approval"].pk,
+                        ],
+                        "fragment": "",
+                        "button_label": "Review CONOPS",
+                        "button_class": "btn-success",
+                    }
+                    break
+
+        if next_action is None:
+            for item in approval_states:
+                approval = item["approval"]
+                is_submitted = (
+                    approval.status in submitted_statuses
+                    or bool(approval.faa_tracking_number)
+                    or approval.submitted_at is not None
+                )
+                if not is_submitted:
+                    next_approval = approval
+                    next_action = {
+                        "title": "Submit Through FAA DroneZone",
+                        "description": (
+                            "Planning and CONOPS review are complete. Use the "
+                            "planning PDF and reviewed CONOPS while entering "
+                            "the request in FAA DroneZone. After submission, "
+                            "record the FAA tracking number here."
+                        ),
+                        "url_name": (
+                            "airspace:operation_approval_tracking"
+                        ),
+                        "url_args": [
+                            operation.pk,
+                            approval.pk,
+                        ],
+                        "fragment": "",
+                        "button_label": "Record FAA Submission",
+                        "button_class": "btn-primary",
+                    }
+                    break
+
+        if next_action is None:
+            for item in approval_states:
+                approval = item["approval"]
+                if approval.status != "approved":
+                    next_approval = approval
+                    next_action = {
+                        "title": "Track the FAA Review",
+                        "description": (
+                            "The request has been submitted. Record FAA "
+                            "correspondence, status changes, additional "
+                            "information requests, and the final decision."
+                        ),
+                        "url_name": (
+                            "airspace:operation_approval_tracking"
+                        ),
+                        "url_args": [
+                            operation.pk,
+                            approval.pk,
+                        ],
+                        "fragment": "",
+                        "button_label": "Manage FAA Record",
+                        "button_class": "btn-primary",
+                    }
+                    break
+
+        if next_action is None:
+            next_action = {
+                "title": "FAA Approval Recorded",
+                "description": (
+                    "All required FAA approvals are recorded as approved. "
+                    "Review the approval documents and special provisions "
+                    "before conducting the operation."
+                ),
+                "url_name": "airspace:operation_planning_pdf",
+                "url_args": [operation.pk],
+                "fragment": "",
+                "button_label": "View Planning Package",
+                "button_class": "btn-success",
+            }
+
+    completed_workflow_steps = sum(
+        1 for step in workflow_steps if step["complete"]
+    )
+
+    return {
+        "approval_workflow_states": approval_states,
+        "workflow_steps": workflow_steps,
+        "completed_workflow_steps": completed_workflow_steps,
+        "total_workflow_steps": len(workflow_steps),
+        "planning_complete": planning_complete,
+        "all_conops_complete": all_conops_complete,
+        "all_submitted": all_submitted,
+        "all_approved": all_approved,
+        "next_action": next_action,
+        "next_approval": next_approval,
+    }
+
+
 @login_required
 def operations_planning_detail(request, pk):
     operation = get_object_or_404(
@@ -93,12 +389,15 @@ def operations_planning_detail(request, pk):
         user=request.user,
     )
     completion_sections = operation.completion_sections()
+    workflow_context = _operation_workflow_context(operation)
+
     return render(
         request,
         "airspace/operations_planning_detail.html",
         {
             "operation": operation,
             "completion_sections": completion_sections,
+            **workflow_context,
         },
     )
 

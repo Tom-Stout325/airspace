@@ -14,7 +14,7 @@ cp -R _AirSpace _AirSpace_backup
 cd into the root folder
 
 
-unzip ~/Downloads/AirSpace_CONOPS_Generation_and_Review_Patch.zip
+unzip ~/Downloads/AirSpace_Operation_Edit_Prefill_Patch.zip
 
 git apply --check AirSpace_pilot_logo_patch/AirSpace-pilot-logo.patch
 
@@ -27,3 +27,20 @@ Add the operation-area map and attachment workflow
 Add approval-specific application questions
 Add FlightLogs and automatic pilot hours
 Add optional AI-assisted rewriting and refinement
+
+Operation Planning (you're essentially finished here)
+CONOPS Builder (AI-assisted with review and editing)
+FAA Submission Package Generator (single ZIP/PDF package)
+Submission Tracking (tracking number, status, approval documents)
+Flight Execution (pre-flight checklist, mission log, actual flight)
+Post-Flight Archive (link approval, CONOPS, flight logs, and documents into a permanent record)
+
+
+Add Time zone drop down in planning
+Auto-fill Pilot cert
+Autofill 107 weather restrictions for clouds, visibility..
+
+Needs help with:
+Safety Justification
+Risk Mitigations
+Equivalent Level of Safety

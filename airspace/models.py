@@ -225,6 +225,14 @@ class OperationsPlanning(models.Model):
     communications_failure_actions = models.TextField(blank=True)
     radio_discipline = models.CharField(max_length=20, choices=RADIO_DISCIPLINE_CHOICES, blank=True)
 
+    uses_standard_part_107_weather_minimums = models.BooleanField(
+        default=True,
+        help_text=(
+            "Use the standard Part 107 minimums of 3 statute miles flight "
+            "visibility, 500 feet below clouds, and 2,000 feet horizontally "
+            "from clouds."
+        ),
+    )
     max_wind_mph = models.PositiveIntegerField(null=True, blank=True)
     min_visibility_sm = models.DecimalField(max_digits=4, decimal_places=1, null=True, blank=True)
     minimum_cloud_ceiling_ft = models.PositiveIntegerField(null=True, blank=True)
@@ -723,21 +731,24 @@ class OperationApproval(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     @property
+    def requires_equivalent_level_of_safety(self):
+        if not self.approval_type_id:
+            return True
+        return self.approval_type.code != "controlled-airspace"
+
+    @property
     def planning_complete(self):
-        return all(
-            (
-                bool(self.approval_type_id),
-                bool((self.requested_operation or "").strip()),
-                bool((self.safety_justification or "").strip()),
-                bool((self.risk_mitigations or "").strip()),
-                bool(
-                    (
-                        self.equivalent_level_of_safety
-                        or ""
-                    ).strip()
-                ),
+        required_values = [
+            bool(self.approval_type_id),
+            bool((self.requested_operation or "").strip()),
+            bool((self.safety_justification or "").strip()),
+            bool((self.risk_mitigations or "").strip()),
+        ]
+        if self.requires_equivalent_level_of_safety:
+            required_values.append(
+                bool((self.equivalent_level_of_safety or "").strip())
             )
-        )
+        return all(required_values)
 
     @property
     def regulation_display(self):

@@ -113,8 +113,6 @@ class OperationsPlanningForm(forms.ModelForm):
             "atc_checkin_procedure",
             "atc_deviation_triggers",
             "radio_discipline",
-            "minimum_distance_below_clouds_ft",
-            "minimum_horizontal_cloud_clearance_ft",
         ]
 
         labels = {
@@ -173,9 +171,12 @@ class OperationsPlanningForm(forms.ModelForm):
             "termination_conditions": "Operation Suspension and Termination Criteria",
             "crew_communications_method": "Crew Communications Method",
             "communications_failure_actions": "Communications Failure Procedures",
+            "uses_standard_part_107_weather_minimums": "Use Standard Part 107 Weather Minimums",
             "max_wind_mph": "Maximum Operating Wind (MPH)",
-            "min_visibility_sm": "Operator Minimum Visibility (Statute Miles)",
+            "min_visibility_sm": "Minimum Flight Visibility (Statute Miles)",
             "minimum_cloud_ceiling_ft": "Operator Minimum Cloud Ceiling (Feet)",
+            "minimum_distance_below_clouds_ft": "Minimum Distance Below Clouds (Feet)",
+            "minimum_horizontal_cloud_clearance_ft": "Minimum Horizontal Distance from Clouds (Feet)",
             "weather_source": "Weather Information Sources",
             "weather_go_nogo": "Weather Go / No-Go Criteria",
             "night_lighting_description": "Night Lighting Plan",
@@ -233,9 +234,12 @@ class OperationsPlanningForm(forms.ModelForm):
             "termination_conditions": "Identify objective conditions requiring the operation to pause or end, such as crewed aircraft, loss of communications, worsening weather, unexpected people or vehicles, equipment warnings, or loss of containment.",
             "crew_communications_method": "Describe the primary method used by the RPIC, visual observers, and support crew to communicate.",
             "communications_failure_actions": "Describe what the crew will do if radios, headsets, phones, or other required communications become unavailable.",
+            "uses_standard_part_107_weather_minimums": "When selected, AirSpace uses 3 statute miles of flight visibility, 500 feet below clouds, and 2,000 feet horizontally from clouds. Clear the checkbox to enter more conservative or approval-specific values.",
             "max_wind_mph": "Enter the operation's wind limit. Use the lower of the aircraft limit and the crew's approved operational limit.",
-            "min_visibility_sm": "Enter the operator's minimum acceptable visibility. This may be more conservative than the Part 107 minimum.",
+            "min_visibility_sm": "Part 107 requires at least 3 statute miles of flight visibility unless specifically waived.",
             "minimum_cloud_ceiling_ft": "Enter the minimum cloud ceiling the crew will accept for this operation based on altitude, terrain, and risk.",
+            "minimum_distance_below_clouds_ft": "Part 107 requires the aircraft to remain at least 500 feet below clouds unless specifically waived.",
+            "minimum_horizontal_cloud_clearance_ft": "Part 107 requires the aircraft to remain at least 2,000 feet horizontally from clouds unless specifically waived.",
             "weather_source": "List the sources used to obtain current and forecast conditions, such as METARs, TAFs, NWS, or an on-site weather station.",
             "weather_go_nogo": "Describe the measurable weather conditions that permit flight and the conditions that require delay, suspension, or cancellation.",
             "night_lighting_description": "Describe aircraft anti-collision lighting, ground lighting, crew dark adaptation, and any additional night procedures.",
@@ -309,6 +313,20 @@ class OperationsPlanningForm(forms.ModelForm):
 
             if isinstance(widget, (forms.TextInput, forms.NumberInput, forms.Select)):
                 widget.attrs.setdefault("autocomplete", "off")
+
+    def clean(self):
+        cleaned = super().clean()
+        pilot_profile = cleaned.get("pilot_profile")
+        if pilot_profile and not (cleaned.get("pilot_cert_manual") or "").strip():
+            cleaned["pilot_cert_manual"] = (
+                pilot_profile.faa_certificate_number or ""
+            ).strip()
+
+        if cleaned.get("uses_standard_part_107_weather_minimums"):
+            cleaned["min_visibility_sm"] = Decimal("3.0")
+            cleaned["minimum_distance_below_clouds_ft"] = 500
+            cleaned["minimum_horizontal_cloud_clearance_ft"] = 2000
+        return cleaned
 
     def _clean_coordinate(self, field_name):
         value = self.cleaned_data.get(field_name)
@@ -443,6 +461,52 @@ class OperationApprovalForm(forms.ModelForm):
     developing the safety case.
     """
 
+    RISK_MITIGATION_CHOICES = [
+        ("restricted_access", "Restricted access to the operating area"),
+        ("barriers", "Physical barriers or clearly marked boundaries"),
+        ("spotters", "Ground spotters or safety personnel"),
+        ("security", "Security or event staff controlling access"),
+        ("temporary_closure", "Temporary road, lane, or area closure"),
+        ("public_notification", "Public or participant notification"),
+        ("visual_observer", "Visual observer monitoring the airspace"),
+        ("crewed_traffic_awareness", "Crewed-aircraft traffic awareness system"),
+        ("atc_coordination", "ATC or airport coordination"),
+        ("immediate_landing", "Immediate landing or flight suspension trigger"),
+        ("reduced_altitude", "Reduced operating altitude"),
+        ("defined_boundary", "Defined and monitored operating boundary"),
+        ("geofencing", "Geofencing or programmed containment"),
+        ("emergency_landing", "Preselected emergency landing areas"),
+    ]
+    EQUIVALENT_SAFETY_CHOICES = [
+        ("additional_observers", "Additional visual observers"),
+        ("reduced_area", "Reduced or tightly controlled operating area"),
+        ("reduced_altitude", "Reduced operating altitude"),
+        ("reduced_speed", "Reduced aircraft speed"),
+        ("smaller_aircraft", "Smaller or lower-energy aircraft"),
+        ("remote_location", "Remote or access-controlled location"),
+        ("additional_training", "Additional pilot or crew training"),
+        ("enhanced_emergency", "Enhanced emergency procedures"),
+        ("enhanced_communications", "Additional crew or ATC communications"),
+        ("redundant_systems", "Redundant aircraft or command-and-control systems"),
+        ("traffic_monitoring", "Dedicated crewed-aircraft traffic monitoring"),
+        ("operational_limits", "More conservative weather or operating limits"),
+    ]
+
+    risk_mitigation_options = forms.MultipleChoiceField(
+        choices=RISK_MITIGATION_CHOICES,
+        required=False,
+        widget=forms.CheckboxSelectMultiple,
+        label="Risk Mitigation Builder",
+        help_text="Select the controls that apply, then generate and review the statement.",
+    )
+    equivalent_safety_options = forms.MultipleChoiceField(
+        choices=EQUIVALENT_SAFETY_CHOICES,
+        required=False,
+        widget=forms.CheckboxSelectMultiple,
+        label="Equivalent Level of Safety Builder",
+        help_text="Select the controls that compensate for the requested relief, then generate and review the statement.",
+    )
+
     class Meta:
         model = OperationApproval
         fields = [
@@ -496,19 +560,107 @@ class OperationApprovalForm(forms.ModelForm):
             ),
         }
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, operation=None, **kwargs):
+        self.operation = operation
         super().__init__(*args, **kwargs)
 
-        self.fields["approval_type"].queryset = (
-            ApprovalType.objects.filter(active=True)
-            .order_by("category", "display_order", "name")
+        approval_types = ApprovalType.objects.filter(active=True)
+
+        if operation is not None:
+            existing_type_ids = operation.approvals.values_list(
+                "approval_type_id",
+                flat=True,
+            )
+
+            if self.instance.pk:
+                existing_type_ids = existing_type_ids.exclude(
+                    pk=self.instance.pk,
+                )
+
+            approval_types = approval_types.exclude(
+                pk__in=existing_type_ids,
+            )
+
+        self.fields["approval_type"].queryset = approval_types.order_by(
+            "category",
+            "display_order",
+            "name",
         )
 
+        if operation is not None and not self.is_bound and not (
+            self.instance.safety_justification or ""
+        ).strip():
+            statement = self.build_aircraft_safety_statement(operation)
+            if statement:
+                self.initial["safety_justification"] = statement
+
         for field in self.fields.values():
-            if isinstance(field.widget, forms.Select):
+            if isinstance(field.widget, forms.CheckboxSelectMultiple):
+                field.widget.attrs.setdefault("class", "form-check-input")
+            elif isinstance(field.widget, forms.Select):
                 field.widget.attrs.setdefault("class", "form-select")
             else:
                 field.widget.attrs.setdefault("class", "form-control")
+
+    @staticmethod
+    def build_aircraft_safety_statement(operation):
+        features = []
+        seen = set()
+        for assignment in operation.aircraft_assignments.select_related("drone"):
+            raw = (
+                assignment.safety_features_snapshot
+                or assignment.drone.safety_features
+                or ""
+            )
+            for line in raw.replace("•", "\n").splitlines():
+                feature = line.strip(" -\t\r\n")
+                if feature and feature.casefold() not in seen:
+                    seen.add(feature.casefold())
+                    features.append(feature)
+
+        if not features:
+            return ""
+        if len(features) == 1:
+            feature_text = features[0]
+        elif len(features) == 2:
+            feature_text = " and ".join(features)
+        else:
+            feature_text = ", ".join(features[:-1]) + ", and " + features[-1]
+
+        return (
+            "The operation will be conducted using aircraft equipped with "
+            f"{feature_text}. These systems will supplement the RPIC's "
+            "procedures, visual scanning, crew coordination, and established "
+            "operating limitations."
+        )
+
+    def clean(self):
+        cleaned = super().clean()
+        approval_type = cleaned.get("approval_type")
+
+        if self.operation is not None and approval_type is not None:
+            duplicate = self.operation.approvals.filter(
+                approval_type=approval_type,
+            )
+            if self.instance.pk:
+                duplicate = duplicate.exclude(pk=self.instance.pk)
+
+            if duplicate.exists():
+                self.add_error(
+                    "approval_type",
+                    (
+                        "This waiver or approval has already been added to "
+                        "the operation. Open the existing record to edit it."
+                    ),
+                )
+
+        if (
+            approval_type
+            and approval_type.code == "controlled-airspace"
+        ):
+            cleaned["equivalent_level_of_safety"] = ""
+
+        return cleaned
 
 
 class OperationApprovalTrackingForm(forms.ModelForm):
