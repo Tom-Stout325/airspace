@@ -7,7 +7,7 @@ from django.db.models import Prefetch
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
-from django.views.decorators.http import require_GET
+from django.views.decorators.http import require_GET, require_http_methods
 from django.urls import reverse_lazy
 from django.utils import timezone
 from django.utils.text import slugify
@@ -22,11 +22,14 @@ from .forms import (
     OperationsPlanningForm,
 )
 from .models import (
+    ApprovalApplication,
     ApprovalType,
+    ConopsSection,
     OperationAircraft,
     OperationApproval,
     OperationsPlanning,
 )
+from .conops import generate_conops, save_conops_review
 from .services import (
     AddressSearchError,
     find_nearest_airport,
@@ -84,6 +87,7 @@ def operations_planning_detail(request, pk):
         ).prefetch_related(
             "aircraft_assignments__drone",
             "approvals__approval_type",
+            "approvals__applications__conops_sections",
         ),
         pk=pk,
         user=request.user,
@@ -237,6 +241,100 @@ def operation_planning_pdf(request, pk):
     )
     response["Cache-Control"] = "private, no-store"
     return response
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def operation_conops_review(request, operation_pk, approval_pk):
+    operation = get_object_or_404(
+        OperationsPlanning,
+        pk=operation_pk,
+        user=request.user,
+    )
+    approval = get_object_or_404(
+        OperationApproval.objects.select_related(
+            "approval_type",
+            "operation",
+        ),
+        pk=approval_pk,
+        operation=operation,
+    )
+
+    application = generate_conops(
+        approval,
+        request.user,
+        regenerate_unlocked=False,
+    )
+
+    if request.method == "POST":
+        action = request.POST.get("action", "save")
+
+        if action == "regenerate":
+            application = generate_conops(
+                approval,
+                request.user,
+                regenerate_unlocked=True,
+            )
+            messages.success(
+                request,
+                "Unlocked CONOPS sections were regenerated from the "
+                "current operation plan.",
+            )
+            return redirect(
+                "airspace:operation_conops_review",
+                operation_pk=operation.pk,
+                approval_pk=approval.pk,
+            )
+
+        submitted_sections = {}
+        for section in application.conops_sections.all():
+            submitted_sections[section.pk] = {
+                "content": request.POST.get(
+                    f"content_{section.pk}",
+                    "",
+                ),
+                "locked": (
+                    request.POST.get(f"locked_{section.pk}") == "on"
+                ),
+                "is_complete": (
+                    request.POST.get(
+                        f"is_complete_{section.pk}"
+                    ) == "on"
+                ),
+            }
+
+        save_conops_review(application, submitted_sections)
+        messages.success(request, "CONOPS review saved.")
+        return redirect(
+            "airspace:operation_conops_review",
+            operation_pk=operation.pk,
+            approval_pk=approval.pk,
+        )
+
+    sections = application.conops_sections.order_by(
+        "section_key",
+    )
+    complete_count = sections.filter(is_complete=True).count()
+    total_count = sections.count()
+    review_percentage = (
+        round((complete_count / total_count) * 100)
+        if total_count
+        else 0
+    )
+
+    return render(
+        request,
+        "airspace/conops_review.html",
+        {
+            "operation": operation,
+            "approval": approval,
+            "application": application,
+            "sections": sections,
+            "complete_count": complete_count,
+            "total_count": total_count,
+            "review_percentage": review_percentage,
+        },
+    )
 
 
 class OperationsPlanningDeleteView(LoginRequiredMixin, DeleteView):

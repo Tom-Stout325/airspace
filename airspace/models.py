@@ -799,7 +799,16 @@ class ApprovalApplication(models.Model):
     def save(self, *args, **kwargs):
         self.full_clean(); return super().save(*args, **kwargs)
 
-    def __str__(self): return f"Application for {self.approval}"
+    def __str__(self):
+        return f"Application for {self.approval}"
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["approval"],
+                name="unique_application_per_operation_approval",
+            )
+        ]
 
 
 class ConopsSection(models.Model):

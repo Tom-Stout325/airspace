@@ -201,6 +201,12 @@
                     Manage FAA record
                   </a>
                   <a
+                    class="btn btn-sm btn-outline-success"
+                    href="{% url 'airspace:operation_conops_review' operation.pk item.pk %}"
+                  >
+                    Build / Review CONOPS
+                  </a>
+                  <a
                     class="btn btn-sm btn-outline-danger"
                     href="{% url 'airspace:operation_approval_delete' operation.pk item.pk %}"
                   >

@@ -4,6 +4,7 @@ from .views import (
     airspace_helper, operation_aircraft_add, operation_aircraft_delete,
     operation_aircraft_edit, operation_approval_add, operation_approval_delete,
     operation_approval_edit, operation_approval_tracking,
+    operation_conops_review,
     operation_planning_pdf, operations_planning_create,
     operations_planning_detail,
     operations_planning_edit, address_search, nearest_airport_lookup,
@@ -30,6 +31,11 @@ urlpatterns = [
     path("operations/<int:operation_pk>/aircraft/<int:pk>/delete/", operation_aircraft_delete, name="operation_aircraft_delete"),
     path("operations/<int:operation_pk>/approvals/add/", operation_approval_add, name="operation_approval_add"),
     path("operations/<int:operation_pk>/approvals/<int:pk>/edit/", operation_approval_edit, name="operation_approval_edit"),
+    path(
+        "operations/<int:operation_pk>/approvals/<int:approval_pk>/conops/",
+        operation_conops_review,
+        name="operation_conops_review",
+    ),
     path(
         "operations/<int:operation_pk>/approvals/<int:pk>/tracking/",
         operation_approval_tracking,

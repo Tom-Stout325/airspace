@@ -14,6 +14,16 @@ cp -R _AirSpace _AirSpace_backup
 cd into the root folder
 
 
-unzip ~/Downloads/AirSpace_Operation_Planning_PDF_Patch.zip
+unzip ~/Downloads/AirSpace_CONOPS_Generation_and_Review_Patch.zip
 
 git apply --check AirSpace_pilot_logo_patch/AirSpace-pilot-logo.patch
+
+
+Next Steps:
+
+Build CONOPS generation and review
+Add CONOPS PDF export
+Add the operation-area map and attachment workflow
+Add approval-specific application questions
+Add FlightLogs and automatic pilot hours
+Add optional AI-assisted rewriting and refinement
