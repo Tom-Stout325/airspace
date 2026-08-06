@@ -135,3 +135,10 @@ if USE_S3:
 
 # Invitation-only registration
 INVITATION_EXPIRY_HOURS = env.int('INVITATION_EXPIRY_HOURS', default=72)
+
+
+NOMINATIM_USER_AGENT = (
+    "AirSpace/1.0 (contact: tom@tom-stout.com)"
+)
+
+NOMINATIM_REFERER = "https://your-airspace-domain.com/"

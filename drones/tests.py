@@ -25,6 +25,14 @@ class DroneViewsTests(TestCase):
         User = get_user_model()
         self.user = User.objects.create_user(email="pilot@example.com", password="test-pass-123")
         self.other_user = User.objects.create_user(email="other@example.com", password="test-pass-123")
+        self.profile = DroneSafetyProfile.objects.create(
+            brand="DJI",
+            model_name="Avata 2",
+            full_display_name="DJI Avata 2",
+            aka_names="Avata 2",
+            safety_features="Integrated propeller guards and Return-to-Home.",
+            active=True,
+        )
         self.drone = Drone.objects.create(
             user=self.user,
             manufacturer="DJI",
@@ -47,13 +55,19 @@ class DroneViewsTests(TestCase):
     def test_create_assigns_authenticated_user(self):
         self.client.force_login(self.user)
         response = self.client.post(reverse("drones:create"), {
-            "manufacturer": "DJI",
-            "model": "Avata 2",
+            "safety_profile": self.profile.pk,
+            "manufacturer": "",
+            "model": "",
             "serial_number": "SN-003",
             "status": Drone.Status.ACTIVE,
+            "safety_features": "",
         })
         created = Drone.objects.get(serial_number="SN-003")
         self.assertEqual(created.user, self.user)
+        self.assertEqual(created.safety_profile, self.profile)
+        self.assertEqual(created.manufacturer, self.profile.brand)
+        self.assertEqual(created.model, self.profile.model_name)
+        self.assertEqual(created.safety_features, self.profile.safety_features)
         self.assertRedirects(response, reverse("drones:detail", args=[created.pk]))
 
     def test_other_users_drone_returns_404(self):
@@ -100,14 +114,28 @@ class DroneSafetyProfileTests(TestCase):
         self.assertIsNone(find_best_drone_profile("DJI", "Air 3S"))
 
     def test_form_populates_empty_safety_features(self):
-        form = DroneForm(data={"manufacturer": "DJI", "model": "Air 3S", "serial_number": "S1", "status": Drone.Status.ACTIVE})
+        form = DroneForm(data={
+            "safety_profile": self.profile.pk,
+            "manufacturer": "",
+            "model": "",
+            "serial_number": "S1",
+            "status": Drone.Status.ACTIVE,
+            "safety_features": "",
+        })
         self.assertTrue(form.is_valid(), form.errors)
         drone = form.save(commit=False)
         self.assertEqual(drone.safety_profile, self.profile)
         self.assertEqual(drone.safety_features, self.profile.safety_features)
 
     def test_form_preserves_user_safety_features(self):
-        form = DroneForm(data={"manufacturer": "DJI", "model": "Air 3S", "serial_number": "S2", "status": Drone.Status.ACTIVE, "safety_features": "Custom wording"})
+        form = DroneForm(data={
+            "safety_profile": self.profile.pk,
+            "manufacturer": "",
+            "model": "",
+            "serial_number": "S2",
+            "status": Drone.Status.ACTIVE,
+            "safety_features": "Custom wording",
+        })
         self.assertTrue(form.is_valid(), form.errors)
         drone = form.save(commit=False)
         self.assertEqual(drone.safety_features, "Custom wording")

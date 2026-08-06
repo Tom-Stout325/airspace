@@ -1,54 +1,42 @@
 from django.urls import path
-from django.db.models import Sum
-from django.views.generic import TemplateView
-from django.contrib.auth.mixins import LoginRequiredMixin
-
-
 from .views import (
-    airspace_helper,
-    AirspacePortalView,
-    WaiverPlanningListView,
-    waiver_planning_new,
-    waiver_planning_delete,
-    waiver_application_overview,
-    waiver_application_description,
-    WaiverEquipmentChecklistView,
-    AirportAutocomplete,
-    conops_overview,
-    conops_section_edit,
-    conops_review,
-    conops_pdf_export,
-    waiver_readiness_checklist,
-    waiver_readiness_checklist_pdf,
-    
-    
+    AirspacePortalView, OperationsPlanningDeleteView, OperationsPlanningListView,
+    airspace_helper, operation_aircraft_add, operation_aircraft_delete,
+    operation_aircraft_edit, operation_approval_add, operation_approval_delete,
+    operation_approval_edit, operation_approval_tracking,
+    operation_planning_pdf, operations_planning_create,
+    operations_planning_detail,
+    operations_planning_edit, address_search, nearest_airport_lookup,
 )
 
 app_name = "airspace"
-
 urlpatterns = [
+    path("api/address-search/", address_search, name="address_search"),
+    path("api/nearest-airport/", nearest_airport_lookup, name="nearest_airport_lookup"),
     path("portal/", AirspacePortalView.as_view(), name="airspace_portal"),
     path("guide/", airspace_helper, name="airspace_guide"),
-    path("waiver/planning/new/", waiver_planning_new, name="waiver_planning_new"),
-    path("waiver/equipment-checklist/", WaiverEquipmentChecklistView.as_view(), name="waiver_equipment_checklist",),
-
-    path("waiver/planning/", WaiverPlanningListView.as_view(), name="waiver_planning_list",),
-    path("waiver/planning/<int:planning_id>/application/", waiver_application_overview, name="waiver_application_overview",),
-    path("waiver/application/<int:pk>/description/", waiver_application_description, name="waiver_application_description",),
-
-    path("waiver/planning/<int:pk>/delete/", waiver_planning_delete, name="waiver_planning_delete",),
-    path("waiver/application/<int:pk>/conops/",conops_overview,name="conops_overview",),
-    path("waiver/application/<int:pk>/conops/<slug:section_key>/", conops_section_edit, name="conops_section_edit",),
-    path("waiver-readiness/", waiver_readiness_checklist, name="waiver_readiness_checklist"),
-    path("waiver-readiness/pdf/", waiver_readiness_checklist_pdf, name="waiver_readiness_checklist_pdf"),
-
-
-    path("conops/<int:application_id>/review/", conops_review, name="conops_review"),
-    path("conops/<int:application_id>/pdf/", conops_pdf_export, name="conops_pdf_export"),
-    path("airports/autocomplete/", AirportAutocomplete.as_view(), name="airport-autocomplete",),
+    path("operations/", OperationsPlanningListView.as_view(), name="operations_planning_list"),
+    path("operations/new/", operations_planning_create, name="operations_planning_create"),
+    path("operations/<int:pk>/", operations_planning_detail, name="operations_planning_detail"),
+    path(
+        "operations/<int:pk>/planning-pdf/",
+        operation_planning_pdf,
+        name="operation_planning_pdf",
+    ),
+    path("operations/<int:pk>/edit/", operations_planning_edit, name="operations_planning_edit"),
+    path("operations/<int:pk>/delete/", OperationsPlanningDeleteView.as_view(), name="operations_planning_delete"),
+    path("operations/<int:operation_pk>/aircraft/add/", operation_aircraft_add, name="operation_aircraft_add"),
+    path("operations/<int:operation_pk>/aircraft/<int:pk>/edit/", operation_aircraft_edit, name="operation_aircraft_edit"),
+    path("operations/<int:operation_pk>/aircraft/<int:pk>/delete/", operation_aircraft_delete, name="operation_aircraft_delete"),
+    path("operations/<int:operation_pk>/approvals/add/", operation_approval_add, name="operation_approval_add"),
+    path("operations/<int:operation_pk>/approvals/<int:pk>/edit/", operation_approval_edit, name="operation_approval_edit"),
+    path(
+        "operations/<int:operation_pk>/approvals/<int:pk>/tracking/",
+        operation_approval_tracking,
+        name="operation_approval_tracking",
+    ),
+    path("operations/<int:operation_pk>/approvals/<int:pk>/delete/", operation_approval_delete, name="operation_approval_delete"),
+    # Temporary aliases so existing navbar links do not fail immediately.
+    path("waiver/planning/", OperationsPlanningListView.as_view(), name="waiver_planning_list"),
+    path("waiver/planning/new/", operations_planning_create, name="waiver_planning_new"),
 ]
-
-
-
-
-

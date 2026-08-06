@@ -7,7 +7,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ("pilot", "0007_alter_pilotprofile_company_logo"),
-        ("airspace", "0002_alter_waiverplanning_aircraft"),
+        ("drones", "0001_initial"),
     ]
 
     operations = [

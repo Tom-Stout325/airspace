@@ -9,13 +9,12 @@ from django.utils import timezone
 from openai import OpenAI
 
 from .constants.conops import CONOPS_SECTIONS
-from .models import ConopsSection
-from .forms import (
-    TIMEFRAME_CHOICES,
-    PURPOSE_OPERATIONS_CHOICES,
-    GROUND_ENVIRONMENT_CHOICES,
-    PREPARED_PROCEDURES_CHOICES,
-)
+from .models import ConopsSection, OperationsPlanning
+
+TIMEFRAME_CHOICES = OperationsPlanning.TIMEFRAME_CHOICES
+PURPOSE_OPERATIONS_CHOICES = OperationsPlanning.PURPOSE_OPERATIONS_CHOICES
+GROUND_ENVIRONMENT_CHOICES = OperationsPlanning.GROUND_ENVIRONMENT_CHOICES
+PREPARED_PROCEDURES_CHOICES = OperationsPlanning.PREPARED_PROCEDURES_CHOICES
 
 # ==========================================================
 # USER-SCOPING GUARDS
@@ -759,3 +758,238 @@ def planning_aircraft_summary(planning, *, user) -> dict:
         "combined_list": combined,
         "combined_display": "; ".join(combined) if combined else "—",
     }
+
+# ---------------------------------------------------------------------------
+# OpenStreetMap / Nominatim address search
+# ---------------------------------------------------------------------------
+
+import hashlib
+import json
+from decimal import Decimal, InvalidOperation
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
+
+from django.conf import settings
+from django.core.cache import cache
+
+from .models import Airport
+
+
+class AddressSearchError(RuntimeError):
+    """Raised when the configured geocoder cannot complete a search."""
+
+
+def _nominatim_cache_key(query: str) -> str:
+    digest = hashlib.sha256(query.strip().casefold().encode("utf-8")).hexdigest()
+    return f"airspace:nominatim:search:{digest}"
+
+
+def _first_value(data: dict, *keys: str) -> str:
+    for key in keys:
+        value = data.get(key)
+        if value:
+            return str(value).strip()
+    return ""
+
+
+def search_openstreetmap_address(query: str) -> list[dict]:
+    """
+    Perform one explicit, user-triggered Nominatim search.
+
+    The public Nominatim endpoint is called only after the user presses
+    Search. Results are cached to reduce repeat upstream requests.
+    """
+    normalized_query = " ".join((query or "").split())
+    if len(normalized_query) < 3:
+        return []
+
+    cache_key = _nominatim_cache_key(normalized_query)
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    if not cache.add(
+        "airspace:nominatim:global-request-lock",
+        "1",
+        timeout=1,
+    ):
+        raise AddressSearchError(
+            "The address service is busy. Wait a moment and search again."
+        )
+
+    base_url = getattr(
+        settings,
+        "NOMINATIM_BASE_URL",
+        "https://nominatim.openstreetmap.org",
+    ).rstrip("/")
+    country_codes = getattr(settings, "NOMINATIM_COUNTRYCODES", "us")
+    result_limit = int(getattr(settings, "NOMINATIM_RESULT_LIMIT", 5))
+    result_limit = max(1, min(result_limit, 10))
+
+    params = {
+        "q": normalized_query,
+        "format": "jsonv2",
+        "addressdetails": "1",
+        "limit": str(result_limit),
+        "dedupe": "1",
+    }
+    if country_codes:
+        params["countrycodes"] = country_codes
+
+    url = f"{base_url}/search?{urlencode(params)}"
+    user_agent = getattr(
+        settings,
+        "NOMINATIM_USER_AGENT",
+        "AirSpace/1.0 (Django UAS operations planner)",
+    )
+    referer = getattr(
+        settings,
+        "NOMINATIM_REFERER",
+        "https://airspace.local/",
+    )
+
+    request = Request(
+        url,
+        headers={
+            "User-Agent": user_agent,
+            "Referer": referer,
+            "Accept": "application/json",
+            "Accept-Language": "en-US,en;q=0.9",
+        },
+    )
+
+    try:
+        with urlopen(request, timeout=8) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except HTTPError as exc:
+        raise AddressSearchError(
+            f"The address service returned HTTP {exc.code}."
+        ) from exc
+    except (URLError, TimeoutError, json.JSONDecodeError) as exc:
+        raise AddressSearchError(
+            "The address service could not be reached."
+        ) from exc
+
+    results: list[dict] = []
+
+    for item in payload:
+        address = item.get("address") or {}
+        house_number = _first_value(address, "house_number")
+        road = _first_value(
+            address,
+            "road",
+            "pedestrian",
+            "footway",
+            "path",
+            "residential",
+        )
+        street = " ".join(part for part in [house_number, road] if part)
+
+        city = _first_value(
+            address,
+            "city",
+            "town",
+            "village",
+            "municipality",
+            "hamlet",
+            "county",
+        )
+
+        state = _first_value(address, "state")
+        state_code = _first_value(address, "ISO3166-2-lvl4")
+        if "-" in state_code:
+            state_code = state_code.rsplit("-", 1)[-1]
+
+        results.append(
+            {
+                "display_name": item.get("display_name", ""),
+                "street_address": street,
+                "city": city,
+                "state": state_code or state,
+                "zip_code": _first_value(address, "postcode"),
+                "latitude": item.get("lat", ""),
+                "longitude": item.get("lon", ""),
+                "osm_type": item.get("osm_type", ""),
+                "osm_id": item.get("osm_id", ""),
+            }
+        )
+
+    cache.set(cache_key, results, timeout=60 * 60 * 24 * 7)
+    return results
+
+
+def find_nearest_airport(
+    latitude,
+    longitude,
+) -> tuple[Airport | None, Decimal | None]:
+    """Return the closest active imported FAA facility and distance in NM."""
+    try:
+        lat = Decimal(str(latitude))
+        lon = Decimal(str(longitude))
+    except (InvalidOperation, TypeError, ValueError):
+        return None, None
+
+    if not (Decimal("-90") <= lat <= Decimal("90")):
+        return None, None
+
+    if not (Decimal("-180") <= lon <= Decimal("180")):
+        return None, None
+
+    candidates = Airport.objects.filter(
+        active=True,
+        latitude__gte=lat - Decimal("4"),
+        latitude__lte=lat + Decimal("4"),
+        longitude__gte=lon - Decimal("6"),
+        longitude__lte=lon + Decimal("6"),
+    )
+
+    if not candidates.exists():
+        candidates = Airport.objects.filter(active=True)
+
+    nearest = None
+    nearest_distance = None
+
+    for airport in candidates.iterator(chunk_size=1000):
+        distance = _airport_haversine_nm(
+            lat,
+            lon,
+            airport.latitude,
+            airport.longitude,
+        )
+        if nearest_distance is None or distance < nearest_distance:
+            nearest = airport
+            nearest_distance = distance
+
+    return nearest, nearest_distance
+
+
+def _airport_haversine_nm(lat1, lon1, lat2, lon2) -> Decimal:
+    from math import atan2, cos, radians, sin, sqrt
+
+    earth_radius_km = Decimal("6371.0088")
+    nautical_miles_per_km = Decimal("0.539956803")
+
+    lat1_decimal = Decimal(str(lat1))
+    lon1_decimal = Decimal(str(lon1))
+    lat2_decimal = Decimal(str(lat2))
+    lon2_decimal = Decimal(str(lon2))
+
+    phi1 = radians(float(lat1_decimal))
+    phi2 = radians(float(lat2_decimal))
+    delta_phi = radians(float(lat2_decimal - lat1_decimal))
+    delta_lambda = radians(float(lon2_decimal - lon1_decimal))
+
+    value = (
+        sin(delta_phi / 2) ** 2
+        + cos(phi1)
+        * cos(phi2)
+        * sin(delta_lambda / 2) ** 2
+    )
+    arc = 2 * atan2(sqrt(value), sqrt(1 - value))
+    kilometers = Decimal(str(float(earth_radius_km) * arc))
+
+    return (kilometers * nautical_miles_per_km).quantize(
+        Decimal("0.01")
+    )
+

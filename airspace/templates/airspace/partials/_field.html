@@ -1,0 +1,13 @@
+<div class="{{ column_class|default:'col-12 col-md-6' }}">
+  <label class="form-label fw-semibold" for="{{ field.id_for_label }}">
+    {{ field.label }}
+    {% if field.field.required %}<span class="text-danger" aria-hidden="true">*</span>{% endif %}
+  </label>
+  {{ field }}
+  {% for error in field.errors %}
+    <div class="invalid-feedback d-block">{{ error }}</div>
+  {% endfor %}
+  {% if field.help_text %}
+    <div class="form-text">{{ field.help_text }}</div>
+  {% endif %}
+</div>

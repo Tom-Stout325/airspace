@@ -1,773 +1,605 @@
-# airspace/forms.py
-from __future__ import annotations
-
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 from django import forms
-from dal_select2.widgets import ModelSelect2
-from django.contrib import messages
-from django.utils import timezone
 
 from drones.models import Drone
 from pilot.models import PilotProfile
-from .models import Airport, WaiverApplication, WaiverPlanning
 
-from .models import _validate_controlled_airspace_required_fields 
-
-
-
-
-
-
-
-TZ_CHOICES = [
-    ("America/New_York", "America/New_York"),
-    ("America/Chicago", "America/Chicago"),
-    ("America/Denver", "America/Denver"),
-    ("America/Los_Angeles", "America/Los_Angeles"),
-]
-
-RADIUS_CHOICES = [
-    ("0.1", "1/10th NM"),
-    ("0.25", "1/4th NM"),
-    ("0.5", "1/2 NM"),
-    ("0.75", "3/4th NM"),
-    ("1.0", "1 NM"),
-    ("1-2", "1–2 NM"),
-    ("2-3", "2–3 NM"),
-    ("blanket", "Blanket Area / Wide Area"),
-]
-
-DIRECTION_NS_CHOICES = [("N", "N"), ("S", "S")]
-DIRECTION_EW_CHOICES = [("E", "E"), ("W", "W")]
-
-TIMEFRAME_CHOICES = [
-    ("sunrise_noon", "Sunrise to Noon"),
-    ("noon_4pm", "Noon to 4 PM"),
-    ("4pm_sunset", "4 PM to Sunset"),
-    ("night", "Night"),
-]
-
-PURPOSE_OPERATIONS_CHOICES = [
-    ("event_filming", "Event filming / broadcast"),
-    ("pro_photography", "Professional aerial photography"),
-    ("mapping_survey", "Mapping / survey"),
-    ("infrastructure_inspection", "Infrastructure inspection"),
-    ("public_safety", "Public safety / incident support"),
-    ("training_proficiency", "Training / proficiency flights"),
-    ("real_estate", "Real estate photography"),
-]
-
-GROUND_ENVIRONMENT_CHOICES = [
-    ("residential", "Residential property / housing"),
-    ("commercial", "Commercial buildings / business areas"),
-    ("industrial", "Industrial or construction sites"),
-    ("agricultural", "Agricultural land / open fields"),
-    ("forested", "Forested or rural terrain"),
-    ("water", "Water features (lakes, rivers, coastlines)"),
-    ("roadways", "Roadways / parking areas"),
-    ("pedestrian", "Pedestrian walkways / public access areas"),
-    ("recreational", "Recreational areas (parks, trails, fields)"),
-    ("infrastructure", "Critical infrastructure (utilities, towers, pipelines)"),
-    ("unpopulated", "Unpopulated or remote terrain"),
-    ("crowd_sparse", "Sparse people present"),
-    ("crowd_moderate", "Moderate public presence"),
-    ("crowd_dense", "Dense gatherings / event crowds"),
-]
-
-PREPARED_PROCEDURES_CHOICES = [
-    ("preflight", "Pre-flight checklist used"),
-    ("postflight", "Post-flight checklist used"),
-    ("lost_link", "Lost-link / flyaway procedure in place"),
-    ("emergency_lz", "Emergency landing zones pre-identified"),
-]
+from .models import (
+    ApprovalType,
+    OperationAircraft,
+    OperationApproval,
+    OperationsPlanning,
+)
 
 
-def _dms_to_decimal(deg, minutes, seconds, direction) -> Decimal:
-    """
-    Convert DMS parts to signed decimal degrees.
-    Returns Decimal quantized to 6 dp (to match model DecimalField).
-    """
-    deg = Decimal(deg)
-    minutes = Decimal(minutes)
-    seconds = Decimal(seconds)
-
-    value = deg + (minutes / Decimal(60)) + (seconds / Decimal(3600))
-    if direction in ("S", "W"):
-        value = -value
-    return value.quantize(Decimal("0.000001"))
+class DateInput(forms.DateInput):
+    input_type = "date"
 
 
-def _qs_user_scoped(qs, user):
-    """
-    If the queryset's model has a 'user' field, scope by it.
-    Otherwise return qs unchanged (for global tables like Airport).
-    """
-    if user is None:
-        return qs
+class OperationsPlanningForm(forms.ModelForm):
+    COORDINATE_QUANTIZER = Decimal("0.000001")
 
-    model = qs.model
-    if any(f.name == "user" for f in model._meta.fields):
-        return qs.filter(user=user)
+    # Nominatim and other mapping sources commonly return more than six
+    # decimal places. The form accepts the higher-precision input and then
+    # normalizes it to the six decimal places supported by the model.
+    location_latitude = forms.DecimalField(
+        required=False,
+        max_digits=18,
+        decimal_places=12,
+        label="Operation Latitude",
+    )
+    location_longitude = forms.DecimalField(
+        required=False,
+        max_digits=18,
+        decimal_places=12,
+        label="Operation Longitude",
+    )
+    launch_latitude = forms.DecimalField(
+        required=False,
+        max_digits=18,
+        decimal_places=12,
+        label="Launch Latitude",
+    )
+    launch_longitude = forms.DecimalField(
+        required=False,
+        max_digits=18,
+        decimal_places=12,
+        label="Launch Longitude",
+    )
 
-    return qs
-
-
-
-class WaiverPlanningForm(forms.ModelForm):
-    """
-    Main planning form for the Airspace waiver workflow.
-    """
+    address_search = forms.CharField(
+        required=False,
+        label="Search for the Operation Address",
+        help_text=(
+            "Enter a venue, business, landmark, or street address, then select "
+            "Search. Choosing a result fills the address and coordinates below."
+        ),
+        widget=forms.TextInput(
+            attrs={
+                "class": "form-control",
+                "placeholder": (
+                    "Example: Sonoma Raceway or 29355 Arnold Drive, Sonoma, CA"
+                ),
+                "autocomplete": "off",
+                "inputmode": "search",
+            }
+        ),
+    )
 
     timeframe = forms.MultipleChoiceField(
-        choices=TIMEFRAME_CHOICES,
+        choices=OperationsPlanning.TIMEFRAME_CHOICES,
         widget=forms.CheckboxSelectMultiple,
         required=False,
-        label="Requested Timeframes",
     )
     purpose_operations = forms.MultipleChoiceField(
-        choices=PURPOSE_OPERATIONS_CHOICES,
+        choices=OperationsPlanning.PURPOSE_OPERATIONS_CHOICES,
         widget=forms.CheckboxSelectMultiple,
         required=False,
-        label="Purpose of Drone Operations",
     )
     ground_environment = forms.MultipleChoiceField(
-        choices=GROUND_ENVIRONMENT_CHOICES,
+        choices=OperationsPlanning.GROUND_ENVIRONMENT_CHOICES,
         widget=forms.CheckboxSelectMultiple,
         required=False,
-        label="Ground Environment",
     )
     prepared_procedures = forms.MultipleChoiceField(
-        choices=PREPARED_PROCEDURES_CHOICES,
+        choices=OperationsPlanning.PREPARED_PROCEDURES_CHOICES,
         widget=forms.CheckboxSelectMultiple,
         required=False,
-        label="Operational Procedures",
-    )
-
-    # --- DMS fields for latitude/longitude (form-only fields) ---
-    lat_deg = forms.IntegerField(required=False, min_value=0, max_value=90)
-    lat_min = forms.IntegerField(required=False, min_value=0, max_value=59)
-    lat_sec = forms.DecimalField(
-        required=False,
-        min_value=0,
-        max_value=Decimal("59.999"),
-        decimal_places=3,
-    )
-    lat_dir = forms.ChoiceField(required=False, choices=DIRECTION_NS_CHOICES)
-
-    lon_deg = forms.IntegerField(required=False, min_value=0, max_value=180)
-    lon_min = forms.IntegerField(required=False, min_value=0, max_value=59)
-    lon_sec = forms.DecimalField(
-        required=False,
-        min_value=0,
-        max_value=Decimal("59.999"),
-        decimal_places=3,
-    )
-    lon_dir = forms.ChoiceField(required=False, choices=DIRECTION_EW_CHOICES)
-
-    local_time_zone = forms.ChoiceField(
-        choices=TZ_CHOICES,
-        required=False,
-        label="Local time zone",
-        widget=forms.Select(attrs={"class": "form-select"}),
     )
 
     class Meta:
-        model = WaiverPlanning
-        fields = [
-            # --- Operation basics ---
-            "operation_title",
-            "start_date",
-            "end_date",
-            "timeframe",
-            "frequency",
-            "local_time_zone",
-            "proposed_agl",
-
-            # --- Aircraft ---
+        model = OperationsPlanning
+        exclude = [
+            "user",
             "aircraft",
-            "aircraft_manual",
-
-            # --- Pilot ---
-            "pilot_profile",
-            "pilot_name_manual",
-            "pilot_cert_manual",
-            "pilot_flight_hours",
-
-            # --- Venue & Location ---
-            "venue_name",
-            "street_address",
-            "location_city",
-            "location_state",
-            "zip_code",
-            "airspace_class",
-            "location_radius",
-            "nearest_airport_ref",
-            "nearest_airport",
             "distance_to_airport_nm",
-            "launch_location",
-
-            # --- 107.39 OOP ---
-            "operates_under_10739",
-            "oop_waiver_document",
-            "oop_waiver_number",
-
-            # --- 107.145 Moving Vehicles ---
-            "operates_under_107145",
-            "mv_waiver_document",
-            "mv_waiver_number",
-
-            # --- Safety / VO / insurance ---
-            "uses_drone_detection",
-            "uses_flight_tracking",
-            "has_visual_observer",
-            "insurance_provider",
-            "insurance_coverage_limit",
-            "safety_features_notes",
-
-            # --- Purpose / profile ---
-            "purpose_operations",
-            "purpose_operations_details",
-            "aircraft_count",
-            "flight_duration",
-            "flights_per_day",
-            "estimated_crowd_size",
-            "ground_environment",
-            "ground_environment_other",
-            "prepared_procedures",
-
-            # --- Area definition / containment ---
-            "operation_area_type",
-            "containment_method",
-            "containment_notes",
+            "generated_conops_at",
+            "aircraft_manual",
+            "operation_area_geojson",
+            "location_radius_ft",
             "corridor_length_ft",
             "corridor_width_ft",
+            "minimum_planned_altitude_agl",
             "max_groundspeed_mph",
-
-            # --- Emergency / lost link ---
-            "lost_link_behavior",
-            "rth_altitude_ft_agl",
-            "lost_link_actions",
-            "flyaway_actions",
-
-            # --- ATC / communications ---
+            "maximum_distance_from_pilot_ft",
+            "maximum_distance_from_launch_ft",
+            "safety_features_notes",
+            "aircraft_failure_actions",
             "atc_facility_name",
             "atc_coordination_method",
             "atc_phone",
             "atc_frequency",
             "atc_checkin_procedure",
             "atc_deviation_triggers",
-
-            # --- Weather & crew ---
-            "max_wind_mph",
-            "min_visibility_sm",
-            "weather_go_nogo",
-            "crew_count",
-            "crew_briefing_procedure",
             "radio_discipline",
-
-            # hidden / stored decimals (we control saving behavior)
-            "location_latitude",
-            "location_longitude",
+            "minimum_distance_below_clouds_ft",
+            "minimum_horizontal_cloud_clearance_ft",
         ]
 
-
-        widgets = {
-            "operation_title": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "e.g., NHRA Nationals FPV Coverage"}
-            ),
-            "start_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
-            "end_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
-            "frequency": forms.Select(attrs={"class": "form-select"}),
-            "proposed_agl": forms.NumberInput(attrs={"min": "0", "class": "form-control"}),
-
-            "aircraft": forms.Select(attrs={"class": "form-select"}),
-            "aircraft_manual": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "e.g., Avata 2, Mini 4 Pro"}
-            ),
-
-            "pilot_profile": forms.Select(attrs={"class": "form-select"}),
-            "pilot_name_manual": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "If not in Pilot Profiles"}
-            ),
-            "pilot_cert_manual": forms.TextInput(attrs={"class": "form-control"}),
-            "pilot_flight_hours": forms.NumberInput(attrs={"class": "form-control", "min": "0"}),
-
-            "venue_name": forms.TextInput(attrs={"class": "form-control"}),
-            "street_address": forms.TextInput(attrs={"class": "form-control"}),
-            "location_city": forms.TextInput(attrs={"class": "form-control", "placeholder": "City"}),
-            "location_state": forms.TextInput(attrs={"class": "form-control", "placeholder": "State (e.g. IN)"}),
-            "zip_code": forms.TextInput(attrs={"class": "form-control"}),
-
-            "airspace_class": forms.Select(attrs={"class": "form-select"}),
-            "location_radius": forms.Select(attrs={"class": "form-select"}),
-
-            "nearest_airport_ref": ModelSelect2(
-                url="airspace:airport-autocomplete",
-                attrs={
-                    "data-placeholder": "Type ICAO or airport name (e.g., KIND)",
-                    "data-minimum-input-length": 1,
-                },
-            ),
-            "nearest_airport": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "Manual fallback (e.g., KIND – Indianapolis Intl)"}
-            ),
-
-            "purpose_operations_details": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
-            "flight_duration": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "e.g. 5–10 minutes"}
-            ),
-            "estimated_crowd_size": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "e.g. ~15,000 (if known)"}
-            ),
-            "flights_per_day": forms.NumberInput(attrs={"class": "form-control", "min": 0}),
-            "ground_environment_other": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
-
-            # Keep decimals hidden (we control these)
-            "location_latitude": forms.HiddenInput(),
-            "location_longitude": forms.HiddenInput(),
-            "operation_area_type": forms.Select(attrs={"class": "form-select"}),
-            "containment_method": forms.Select(attrs={"class": "form-select"}),
-            "containment_notes": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
-            "corridor_length_ft": forms.NumberInput(attrs={"class": "form-control", "min": 0}),
-            "corridor_width_ft": forms.NumberInput(attrs={"class": "form-control", "min": 0}),
-            "max_groundspeed_mph": forms.NumberInput(attrs={"class": "form-control", "min": 0}),
-
-            "lost_link_behavior": forms.Select(attrs={"class": "form-select"}),
-            "rth_altitude_ft_agl": forms.NumberInput(attrs={"class": "form-control", "min": 0}),
-            "lost_link_actions": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
-            "flyaway_actions": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
-
-            "atc_facility_name": forms.TextInput(attrs={"class": "form-control"}),
-            "atc_coordination_method": forms.Select(attrs={"class": "form-select"}),
-            "atc_phone": forms.TextInput(attrs={"class": "form-control"}),
-            "atc_frequency": forms.TextInput(attrs={"class": "form-control"}),
-            "atc_checkin_procedure": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
-            "atc_deviation_triggers": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
-
-            "max_wind_mph": forms.NumberInput(attrs={"class": "form-control", "min": 0}),
-            "min_visibility_sm": forms.NumberInput(attrs={"class": "form-control", "step": "0.1", "min": 0}),
-            "weather_go_nogo": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
-            "crew_count": forms.NumberInput(attrs={"class": "form-control", "min": 0}),
-            "crew_briefing_procedure": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
-            "radio_discipline": forms.Select(attrs={"class": "form-select"}),
-
-            
+        labels = {
+            "status": "Planning Status",
+            "operation_title": "Operation Name",
+            "operation_description": "Mission Description",
+            "start_date": "Proposed Start Date",
+            "end_date": "Proposed End Date",
+            "frequency": "Operation Frequency",
+            "local_time_zone": "Local Time Zone",
+            "purpose_operations_details": "Mission Details",
+            "aircraft_use": "Aircraft Deployment",
+            "pilot_profile": "Remote Pilot in Command (RPIC)",
+            "pilot_name_manual": "RPIC Name (Manual Entry)",
+            "pilot_cert_manual": "FAA Remote Pilot Certificate Number",
+            "pilot_flight_hours": "RPIC Flight Experience (Hours)",
+            "venue_name": "Venue or Site Name",
+            "street_address": "Operation Site Address",
+            "location_city": "City",
+            "location_state": "State",
+            "zip_code": "ZIP Code",
+            "location_latitude": "Operation Latitude",
+            "location_longitude": "Operation Longitude",
+            "launch_location": "Primary Launch Site",
+            "launch_latitude": "Launch Latitude",
+            "launch_longitude": "Launch Longitude",
+            "recovery_location": "Landing Location",
+            "airspace_class": "Airspace Classification",
+            "nearest_airport": "Nearest Airport Identifier (Manual)",
+            "nearest_airport_ref": "Nearest Airport",
+            "operation_area_type": "Operational Area Geometry",
+            "operation_area_description": "Operational Area Description",
+            "containment_method": "Primary Containment Method",
+            "containment_notes": "Containment Procedures",
+            "maximum_planned_altitude_agl": "Maximum Planned Altitude (AGL)",
+            "planned_bvlos": "Operation Includes BVLOS Flight",
+            "flight_duration": "Typical Flight Duration",
+            "flights_per_day": "Estimated Flights per Day",
+            "ground_environment_other": "Other Ground Environment Details",
+            "estimated_crowd_size": "Estimated Maximum Crowd Size",
+            "ground_risk_mitigation": "Ground Risk Controls",
+            "air_risk_mitigation": "Airspace Risk Controls",
+            "uses_drone_detection": "Drone Detection System Used",
+            "uses_flight_tracking": "Crewed Aircraft Traffic Awareness Used",
+            "has_visual_observer": "Visual Observer Used",
+            "insurance_provider": "Insurance Provider",
+            "insurance_coverage_limit": "Liability Coverage Limit",
+            "lost_link_behavior": "Programmed Lost-Link Behavior",
+            "rth_altitude_ft_agl": "Return-to-Home Altitude (AGL)",
+            "lost_link_actions": "Lost-Link Procedures",
+            "flyaway_actions": "Flyaway Procedures",
+            "emergency_response_plan": "Emergency Response Procedures",
+            "emergency_landing_areas": "Emergency Landing Areas",
+            "injury_or_property_damage_actions": "Injury or Property Damage Response",
+            "incident_reporting_procedure": "Incident Reporting Procedures",
+            "termination_conditions": "Operation Suspension and Termination Criteria",
+            "crew_communications_method": "Crew Communications Method",
+            "communications_failure_actions": "Communications Failure Procedures",
+            "max_wind_mph": "Maximum Operating Wind (MPH)",
+            "min_visibility_sm": "Operator Minimum Visibility (Statute Miles)",
+            "minimum_cloud_ceiling_ft": "Operator Minimum Cloud Ceiling (Feet)",
+            "weather_source": "Weather Information Sources",
+            "weather_go_nogo": "Weather Go / No-Go Criteria",
+            "night_lighting_description": "Night Lighting Plan",
+            "crew_count": "Total Crew Members",
+            "crew_briefing_procedure": "Crew Briefing Notes",
         }
 
-    def _should_lock_distance(self, cleaned=None) -> bool:
-        """
-        Lock distance_to_airport_nm when we have enough inputs to compute it.
-        Works for both initial render (instance) and POST (cleaned).
-        """
-        if cleaned is not None:
-            airport = cleaned.get("nearest_airport_ref")
-            lat = cleaned.get("location_latitude")
-            lon = cleaned.get("location_longitude")
-            return bool(airport and lat is not None and lon is not None)
+        help_texts = {
+            "status": "Use Draft while information is still being collected. Advance the status only when the plan is ready for review or use.",
+            "operation_title": "Use a short, recognizable name such as 'NHRA Finals Broadcast Coverage'.",
+            "operation_description": "Summarize what the crew will do, why the flights are needed, and the general operating concept.",
+            "start_date": "Enter the first proposed day of flight operations.",
+            "end_date": "Leave blank for a one-day operation. Otherwise enter the final proposed operating date.",
+            "frequency": "Describe how often flights are expected during the selected date range.",
+            "local_time_zone": "Use an IANA time zone such as America/New_York.",
+            "purpose_operations_details": "Add details not clear from the selected mission type, including deliverables, client needs, or event coverage.",
+            "aircraft_use": "Indicate whether one aircraft, multiple aircraft used in sequence, or multiple aircraft used simultaneously are planned.",
+            "pilot_profile": "Select the saved pilot profile for the person who will serve as Remote Pilot in Command.",
+            "pilot_name_manual": "Use only when the RPIC does not yet have a saved pilot profile.",
+            "pilot_cert_manual": "Use only when the certificate number is not available from the selected pilot profile.",
+            "pilot_flight_hours": "Enter the RPIC's approximate total UAS flight experience.",
+            "location_latitude": "Enter the approximate center of the operation in decimal degrees.",
+            "location_longitude": "Enter the approximate center of the operation in decimal degrees.",
+            "launch_location": "Describe the primary takeoff point in terms the crew can identify on site.",
+            "launch_latitude": "Optional decimal-degree coordinate for the launch point.",
+            "launch_longitude": "Optional decimal-degree coordinate for the launch point.",
+            "recovery_location": "Describe the planned normal landing location.",
+            "airspace_class": "Select the class of airspace containing the operation. Leave blank if it has not yet been confirmed.",
+            "nearest_airport_ref": "Select the nearest airport from the imported FAA airport data.",
+            "nearest_airport": "Use only when the airport is not available in the dropdown.",
+            "operation_area_type": "Choose the shape that best describes the planned operating area. The exact boundary will later be defined on a map.",
+            "operation_area_description": "Describe the lateral boundaries using roads, buildings, property lines, venue features, or other recognizable references.",
+            "containment_method": "Select the primary method used to keep the aircraft inside the defined operational area.",
+            "containment_notes": "Explain how the boundary will be established, monitored, and enforced during the operation.",
+            "maximum_planned_altitude_agl": "Enter the highest altitude planned above the surface directly beneath the aircraft.",
+            "planned_bvlos": "Select this only when any portion of the flight is expected to occur beyond the RPIC's visual line of sight.",
+            "flight_duration": "Enter a typical duration such as '12 minutes' or '20-25 minutes'.",
+            "flights_per_day": "Estimate the maximum number of separate flights expected during a normal operating day.",
+            "ground_environment_other": "Describe relevant ground conditions not represented by the available choices.",
+            "estimated_crowd_size": "Estimate the greatest number of people expected within or immediately adjacent to the operating area.",
+            "ground_risk_mitigation": "Describe how people, vehicles, and property will be protected. Examples include access control, barriers, spotters, restricted zones, scheduling, and emergency landing areas.",
+            "air_risk_mitigation": "Describe how the crew will identify and avoid crewed aircraft or other airspace conflicts. Examples include visual observers, ADS-B awareness, altitude limits, ATC coordination, and immediate landing procedures.",
+            "uses_drone_detection": "Select when a dedicated system will detect other unmanned aircraft near the operation.",
+            "uses_flight_tracking": "Select when the RPIC or visual observer will use a system or application to monitor nearby crewed-aircraft traffic. This supplements visual scanning and ATC coordination; it does not replace see-and-avoid responsibilities.",
+            "has_visual_observer": "Select when one or more visual observers will assist the RPIC.",
+            "insurance_coverage_limit": "Enter the liability limit, such as '$1,000,000' or '$5,000,000'.",
+            "lost_link_behavior": "Select the aircraft's programmed response after control-link loss.",
+            "rth_altitude_ft_agl": "Enter the programmed Return-to-Home altitude above ground level.",
+            "lost_link_actions": "Describe the crew's steps after link loss, including monitoring, area control, notifications, and when the operation is terminated.",
+            "flyaway_actions": "Describe how the crew will track the aircraft, record its last known position, notify affected parties, and protect people below.",
+            "emergency_response_plan": "Describe who stops the operation, secures the area, contacts emergency services or ATC, preserves flight records, and completes required reporting.",
+            "emergency_landing_areas": "Identify preselected areas where the aircraft can land safely without creating additional risk.",
+            "injury_or_property_damage_actions": "Describe immediate medical, scene-control, notification, documentation, and reporting actions.",
+            "incident_reporting_procedure": "Explain who documents and reports an incident, which records are preserved, and what internal or FAA notifications may apply.",
+            "termination_conditions": "Identify objective conditions requiring the operation to pause or end, such as crewed aircraft, loss of communications, worsening weather, unexpected people or vehicles, equipment warnings, or loss of containment.",
+            "crew_communications_method": "Describe the primary method used by the RPIC, visual observers, and support crew to communicate.",
+            "communications_failure_actions": "Describe what the crew will do if radios, headsets, phones, or other required communications become unavailable.",
+            "max_wind_mph": "Enter the operation's wind limit. Use the lower of the aircraft limit and the crew's approved operational limit.",
+            "min_visibility_sm": "Enter the operator's minimum acceptable visibility. This may be more conservative than the Part 107 minimum.",
+            "minimum_cloud_ceiling_ft": "Enter the minimum cloud ceiling the crew will accept for this operation based on altitude, terrain, and risk.",
+            "weather_source": "List the sources used to obtain current and forecast conditions, such as METARs, TAFs, NWS, or an on-site weather station.",
+            "weather_go_nogo": "Describe the measurable weather conditions that permit flight and the conditions that require delay, suspension, or cancellation.",
+            "night_lighting_description": "Describe aircraft anti-collision lighting, ground lighting, crew dark adaptation, and any additional night procedures.",
+            "crew_count": "Include the RPIC, visual observers, payload operators, and other operational crew.",
+            "crew_briefing_procedure": "Record operation-specific briefing topics or deviations from the standard crew briefing. Leave blank when the standard briefing fully applies.",
+        }
 
-        airport = getattr(self.instance, "nearest_airport_ref", None)
-        lat = getattr(self.instance, "location_latitude", None)
-        lon = getattr(self.instance, "location_longitude", None)
-        return bool(airport and lat is not None and lon is not None)
-
+        widgets = {
+            "start_date": DateInput(),
+            "end_date": DateInput(),
+            "operation_description": forms.Textarea(attrs={"rows": 4}),
+            "purpose_operations_details": forms.Textarea(attrs={"rows": 3}),
+            "operation_area_description": forms.Textarea(attrs={"rows": 3}),
+            "containment_notes": forms.Textarea(attrs={"rows": 3}),
+            "ground_environment_other": forms.Textarea(attrs={"rows": 3}),
+            "ground_risk_mitigation": forms.Textarea(attrs={"rows": 4}),
+            "air_risk_mitigation": forms.Textarea(attrs={"rows": 4}),
+            "lost_link_actions": forms.Textarea(attrs={"rows": 4}),
+            "flyaway_actions": forms.Textarea(attrs={"rows": 4}),
+            "emergency_response_plan": forms.Textarea(attrs={"rows": 5}),
+            "emergency_landing_areas": forms.Textarea(attrs={"rows": 3}),
+            "injury_or_property_damage_actions": forms.Textarea(attrs={"rows": 4}),
+            "incident_reporting_procedure": forms.Textarea(attrs={"rows": 4}),
+            "termination_conditions": forms.Textarea(attrs={"rows": 4}),
+            "communications_failure_actions": forms.Textarea(attrs={"rows": 4}),
+            "weather_go_nogo": forms.Textarea(attrs={"rows": 4}),
+            "night_lighting_description": forms.Textarea(attrs={"rows": 4}),
+            "crew_briefing_procedure": forms.Textarea(attrs={"rows": 3}),
+        }
 
     def __init__(self, *args, user=None, **kwargs):
-        self.user = user
         super().__init__(*args, **kwargs)
+        self.user = user
 
-        if self.user is not None:
-            self.instance.user = self.user
-            
-        if "distance_to_airport_nm" in self.fields:
-            if self._should_lock_distance():
-                f = self.fields["distance_to_airport_nm"]
-                f.disabled = True
-                f.required = False
-                f.help_text = "Auto-calculated from selected airport + coordinates."
-                f.widget.attrs.update({
-                    "class": "form-control",
-                    "readonly": "readonly",
-                })
+        self.fields["pilot_profile"].queryset = (
+            PilotProfile.objects.filter(user=user)
+            if user
+            else PilotProfile.objects.none()
+        )
+        self.fields["nearest_airport_ref"].queryset = (
+            self.fields["nearest_airport_ref"]
+            .queryset.filter(active=True)
+            .order_by("name")
+        )
 
+        self.fields["nearest_airport"].widget.attrs.update(
+            {
+                "readonly": True,
+                "aria-readonly": "true",
+            }
+        )
+
+        checkbox_groups = {
+            "timeframe",
+            "purpose_operations",
+            "ground_environment",
+            "prepared_procedures",
+        }
 
         for name, field in self.fields.items():
-            w = field.widget
-            if w.__class__.__module__.startswith("dal"):
-                continue
-            if isinstance(w, forms.Select):
-                w.attrs.setdefault("class", "form-select")
-            elif isinstance(w, (forms.TextInput, forms.Textarea, forms.NumberInput, forms.DateInput)):
-                w.attrs.setdefault("class", "form-control")
+            widget = field.widget
 
-        if not (self.initial.get("local_time_zone") or getattr(self.instance, "local_time_zone", None)):
-            self.initial["local_time_zone"] = TZ_CHOICES[0][0] if TZ_CHOICES else None
+            if name in checkbox_groups:
+                widget.attrs.setdefault("class", "form-check-input")
+            elif isinstance(widget, forms.CheckboxInput):
+                widget.attrs.setdefault("class", "form-check-input")
+            elif isinstance(widget, forms.Select):
+                widget.attrs.setdefault("class", "form-select")
+            else:
+                widget.attrs.setdefault("class", "form-control")
 
-        if "location_radius" in self.fields:
-            self.fields["location_radius"].widget = forms.Select(
-                choices=[("", "Select Radius")] + RADIUS_CHOICES,
-                attrs={"class": "form-select"},
+            if isinstance(widget, (forms.TextInput, forms.NumberInput, forms.Select)):
+                widget.attrs.setdefault("autocomplete", "off")
+
+    def _clean_coordinate(self, field_name):
+        value = self.cleaned_data.get(field_name)
+
+        if value in (None, ""):
+            return None
+
+        try:
+            return Decimal(str(value)).quantize(
+                self.COORDINATE_QUANTIZER,
+                rounding=ROUND_HALF_UP,
             )
+        except (InvalidOperation, TypeError, ValueError) as exc:
+            raise forms.ValidationError(
+                "Enter a valid coordinate."
+            ) from exc
 
-        for name in ["lat_deg", "lat_min", "lat_sec", "lon_deg", "lon_min", "lon_sec"]:
-            if name in self.fields:
-                self.fields[name].widget.attrs.setdefault("class", "form-control form-control-sm")
-        for name in ["lat_dir", "lon_dir"]:
-            if name in self.fields:
-                self.fields[name].widget.attrs.setdefault("class", "form-select form-select-sm")
+    def clean_location_latitude(self):
+        return self._clean_coordinate("location_latitude")
 
-        if "pilot_profile" in self.fields:
-            qs = PilotProfile.objects.select_related("user")
-            if self.user is not None:
-                qs = qs.filter(user=self.user)
+    def clean_location_longitude(self):
+        return self._clean_coordinate("location_longitude")
 
-            qs = qs.order_by("user__first_name", "user__last_name", "user__email")
-            self.fields["pilot_profile"].queryset = qs
+    def clean_launch_latitude(self):
+        return self._clean_coordinate("launch_latitude")
 
-            def label_from_instance(obj):
-                full_name = f"{obj.user.first_name} {obj.user.last_name}".strip()
-                return full_name or obj.user.email
-
-            self.fields["pilot_profile"].label_from_instance = label_from_instance
-
-
-        if "aircraft" in self.fields:
-            qs = Drone.objects.filter(status=Drone.Status.ACTIVE)
-            qs = _qs_user_scoped(qs, self.user).order_by("manufacturer", "model")
-            self.fields["aircraft"].queryset = qs
-
-
-        if "nearest_airport_ref" in self.fields:
-            self.fields["nearest_airport_ref"].queryset = Airport.objects.filter(active=True).order_by("icao")
-
-
-    def _selected_pilot(self):
-        """
-        Only return a pilot profile owned by the current user (when user is provided).
-        PilotProfile pk is int (default).
-        """
-        if self.is_bound:
-            raw = (self.data.get("pilot_profile") or "").strip()
-            if raw.isdigit():
-                qs = PilotProfile.objects.select_related("user").filter(pk=int(raw))
-                qs = _qs_user_scoped(qs, self.user)
-                return qs.first()
-            return None
-
-        pilot = getattr(self.instance, "pilot_profile", None)
-        if pilot and self.user is not None and hasattr(pilot, "user_id") and pilot.user_id != self.user.id:
-            return None
-        return pilot
-
-
-    def _selected_aircraft(self):
-        """
-        Only return an aircraft owned by the current user (when user is provided).
-        UUID-safe aircraft lookup.
-        """
-        if self.is_bound:
-            raw = (self.data.get("aircraft") or "").strip()
-            if not raw or not raw.isdigit():
-                return None
-
-            qs = Drone.objects.filter(pk=int(raw))
-            qs = _qs_user_scoped(qs, self.user)
-            return qs.first()
-
-        ac = getattr(self.instance, "aircraft", None)
-        if ac and self.user is not None and hasattr(ac, "user_id") and ac.user_id != self.user.id:
-            return None
-        return ac
-
-
-    def clean(self):
-        cleaned = super().clean()
-
-        # -------------------------------------------------
-        # Ownership enforcement (server-side)
-        # -------------------------------------------------
-        if self.user is not None:
-            pilot = cleaned.get("pilot_profile")
-            if pilot is not None and hasattr(pilot, "user_id") and pilot.user_id != self.user.id:
-                self.add_error("pilot_profile", "Invalid selection.")
-
-            aircraft = cleaned.get("aircraft")
-            if aircraft is not None and hasattr(aircraft, "user_id") and aircraft.user_id != self.user.id:
-                self.add_error("aircraft", "Invalid selection.")
-
-            for doc_field in ("oop_waiver_document", "mv_waiver_document"):
-                doc = cleaned.get(doc_field)
-                if doc is not None and hasattr(doc, "user_id") and doc.user_id != self.user.id:
-                    self.add_error(doc_field, "Invalid selection.")
-
-        # -------------------------------------------------
-        # Pilot auto-fill (server-side)
-        # -------------------------------------------------
-        pilot_obj = self._selected_pilot()
-        if pilot_obj:
-            # Certificate
-            if not cleaned.get("pilot_cert_manual") and (pilot_obj.faa_certificate_number or "").strip():
-                cleaned["pilot_cert_manual"] = pilot_obj.faa_certificate_number
-
-            # Flight hours
-            if not cleaned.get("pilot_flight_hours"):
-                total_seconds = pilot_obj.flight_time_total()
-                if total_seconds:
-                    cleaned["pilot_flight_hours"] = round(total_seconds / 3600, 1)
-
-        # -------------------------------------------------
-        # DMS -> Decimal coords (authoritative)
-        # -------------------------------------------------
-        lat_parts = [
-            cleaned.get("lat_deg"),
-            cleaned.get("lat_min"),
-            cleaned.get("lat_sec"),
-            cleaned.get("lat_dir"),
-        ]
-        lon_parts = [
-            cleaned.get("lon_deg"),
-            cleaned.get("lon_min"),
-            cleaned.get("lon_sec"),
-            cleaned.get("lon_dir"),
-        ]
-
-        lat_complete = all(part not in (None, "") for part in lat_parts)
-        lon_complete = all(part not in (None, "") for part in lon_parts)
-
-        if lat_complete:
-            try:
-                cleaned["location_latitude"] = _dms_to_decimal(
-                    cleaned["lat_deg"], cleaned["lat_min"], cleaned["lat_sec"], cleaned["lat_dir"]
-                )
-            except (InvalidOperation, ValueError, TypeError):
-                self.add_error("lat_sec", "Invalid latitude value.")
-
-        if lon_complete:
-            try:
-                cleaned["location_longitude"] = _dms_to_decimal(
-                    cleaned["lon_deg"], cleaned["lon_min"], cleaned["lon_sec"], cleaned["lon_dir"]
-                )
-            except (InvalidOperation, ValueError, TypeError):
-                self.add_error("lon_sec", "Invalid longitude value.")
-
-        # HARDEN: If DMS not provided, do NOT accept posted hidden coords.
-        # Keep the instance values (edit mode) or None (new).
-        if not lat_complete:
-            cleaned["location_latitude"] = getattr(self.instance, "location_latitude", None)
-        if not lon_complete:
-            cleaned["location_longitude"] = getattr(self.instance, "location_longitude", None)
-
-        # -------------------------------------------------
-        # Distance-to-airport handling
-        # - If airport FK + coords exist, the MODEL computes distance in save().
-        #   So we *clear* any user-entered value to avoid stale/confusing persistence.
-        # - Otherwise, accept manual distance if they typed it.
-        # -------------------------------------------------
-        if self._should_lock_distance(cleaned):
-            cleaned["distance_to_airport_nm"] = None
-
-        return cleaned
-
+    def clean_launch_longitude(self):
+        return self._clean_coordinate("launch_longitude")
 
     def save(self, commit=True):
         instance = super().save(commit=False)
 
-        # FK fields explicitly (prevents silent drops)
-        instance.aircraft = self.cleaned_data.get("aircraft")
-        instance.pilot_profile = self.cleaned_data.get("pilot_profile")
-        instance.nearest_airport_ref = self.cleaned_data.get("nearest_airport_ref")
-
-        # DMS -> model decimals (authoritative)
-        instance.location_latitude = self.cleaned_data.get("location_latitude")
-        instance.location_longitude = self.cleaned_data.get("location_longitude")
-
-        # Safety features fallback (server-side)
-        if instance.aircraft and not (instance.safety_features_notes or "").strip():
-            if (instance.aircraft.safety_features or "").strip():
-                instance.safety_features_notes = instance.aircraft.safety_features
-
-        # Distance: allow manual entry ONLY when we're NOT in auto-compute mode.
-        if not self._should_lock_distance(self.cleaned_data):
-            instance.distance_to_airport_nm = self.cleaned_data.get("distance_to_airport_nm")
-        else:
-            # Clear any manual/stale value; model.save() will compute if it can.
-            instance.distance_to_airport_nm = None
+        if self.user and not instance.user_id:
+            instance.user = self.user
 
         if commit:
             instance.save()
-            self.save_m2m()
 
         return instance
 
 
-
-class WaiverApplicationDescriptionForm(forms.ModelForm):
-    """
-    Step 2: Big text box that holds the Description of Operations.
-    """
-
+class OperationAircraftForm(forms.ModelForm):
     class Meta:
-        model = WaiverApplication
-        fields = ["description"]
-        widgets = {
-            "description": forms.Textarea(
-                attrs={
-                    "class": "form-control",
-                    "rows": 18,
-                    "placeholder": "Description of Operations will appear here…",
-                }
-            )
+        model = OperationAircraft
+        fields = [
+            "drone",
+            "planned_payload",
+            "registration_verified",
+            "remote_id_verified",
+            "preflight_airworthiness_verified",
+            "current_firmware_installed",
+            "operation_specific_safety_notes",
+        ]
+        labels = {
+            "drone": "Aircraft",
+            "planned_payload": "Payload or Attached Equipment",
+            "registration_verified": "FAA Registration Verified",
+            "remote_id_verified": "Remote ID Verified",
+            "preflight_airworthiness_verified": (
+                "Aircraft Airworthiness Verified"
+            ),
+            "current_firmware_installed": "Current Firmware Installed",
+            "operation_specific_safety_notes": (
+                "Aircraft-Specific Safety Notes"
+            ),
         }
-
-
-
-
-
-
-
-
-
-
-
-class WaiverReadinessForm(forms.Form):
-    """
-    Worksheet form: collect required info before building a WaiverPlanning + WaiverApplication.
-    This does NOT save anything by default.
-    """
-
-    # -------------------------
-    # Operation basics
-    # -------------------------
-    operation_title         = forms.CharField(required=True, help_text="Short title for this operation (e.g., 'NHRA Nationals FPV Coverage').")
-    start_date              = forms.DateField(required=True, widget=forms.DateInput(attrs={"type": "date"}), help_text="First date on which operations will occur.")
-    end_date                = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}), help_text="Last date on which operations will occur (optional if single day).")
-    timeframe               = forms.MultipleChoiceField(required=False, choices=WaiverPlanning.TIMEFRAME_CHOICES, widget=forms.CheckboxSelectMultiple, help_text="Select all timeframes you expect to operate.")
-    frequency               = forms.ChoiceField(required=False, choices=[("", "---------")] + WaiverPlanning.FREQUENCY_CHOICES, help_text="How often operations will occur during this date range.")
-    local_time_zone         = forms.CharField(required=False, help_text="Local time zone (e.g., America/New_York).")
-    proposed_agl            = forms.IntegerField(required=False, min_value=1, help_text="Maximum planned altitude AGL in feet.")
-
-    # -------------------------
-    # Aircraft
-    # -------------------------
-    aircraft                = forms.ModelChoiceField(required=False, queryset=Drone.objects.none(), help_text="Select a drone from your equipment list (optional).")
-    aircraft_manual         = forms.CharField(required=False, help_text="If needed, manually describe any additional aircraft types.")
-
-    # -------------------------
-    # Pilot
-    # -------------------------
-    pilot_profile           = forms.ModelChoiceField(required=False, queryset=PilotProfile.objects.none(), help_text="Select a pilot profile (optional).")
-    pilot_name_manual       = forms.CharField(required=False, help_text="If not using a profile, enter the RPIC full name.")
-    pilot_cert_manual       = forms.CharField(required=False, help_text="If not using a profile, enter the Part 107 certificate number.")
-    pilot_flight_hours      = forms.DecimalField(required=False, max_digits=7, decimal_places=1, help_text="Approximate total UAS flight hours.")
-
-    # -------------------------
-    # Waivers
-    # -------------------------
-    operates_under_10739    = forms.BooleanField(required=False, help_text="Check if operating under an approved §107.39 waiver.")
-    oop_waiver_document     = forms.FileField(required=False, help_text="Upload your approved §107.39 waiver document (optional).")
-    oop_waiver_number       = forms.CharField(required=False, help_text="Example: 107W-2024-01234 (optional if document contains it).")
-
-    operates_under_107145   = forms.BooleanField(required=False, help_text="Check if operating under an approved §107.145 waiver.")
-    mv_waiver_document      = forms.FileField(required=False, help_text="Upload your approved §107.145 waiver document (optional).")
-    mv_waiver_number        = forms.CharField(required=False, help_text="Example: 107W-2024-04567 (optional if document contains it).")
-
-    # -------------------------
-    # Purpose of Operations
-    # -------------------------
-    purpose_operations      = forms.MultipleChoiceField(required=False, choices=WaiverPlanning.PURPOSE_OPERATIONS_CHOICES, widget=forms.CheckboxSelectMultiple, help_text="Select all purposes that apply.")
-    purpose_operations_details = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 3}), help_text="Add context: what exactly you’re doing, why, and how.")
-
-    # -------------------------
-    # Venue & Location
-    # -------------------------
-    venue_name              = forms.CharField(required=False, help_text="Venue name (e.g., 'Lucas Oil Raceway').")
-    street_address          = forms.CharField(required=False, help_text="Street address of the venue or operation area.")
-    location_city           = forms.CharField(required=False, help_text="City where operations occur.")
-    location_state          = forms.CharField(required=False, help_text="State where operations occur.")
-    zip_code                = forms.CharField(required=False, help_text="ZIP code for the operation location.")
-    location_latitude       = forms.DecimalField(required=False, max_digits=9, decimal_places=6, help_text="Decimal latitude for center point (optional but recommended).")
-    location_longitude      = forms.DecimalField(required=False, max_digits=9, decimal_places=6, help_text="Decimal longitude for center point (optional but recommended).")
-    airspace_class          = forms.ChoiceField(required=False, choices=[("", "---------")] + WaiverPlanning.AIRSPACE_CLASS_CHOICES, help_text="Airspace class at the operation area (B/C/D/E/G).")
-    location_radius         = forms.CharField(required=False, help_text="Radius / footprint description (e.g., '0.5 NM' or 'venue footprint').")
-    nearest_airport         = forms.CharField(required=False, help_text="Nearest airport identifier/name (e.g., 'KIND').")
-    nearest_airport_ref     = forms.ModelChoiceField(required=False, queryset=Airport.objects.all(), help_text="Select an airport reference (preferred).")
-
-    # -------------------------
-    # Launch & Safety
-    # -------------------------
-    launch_location         = forms.CharField(required=False, help_text="Typical launch/staging location description.")
-    uses_drone_detection    = forms.BooleanField(required=False, help_text="Will you use a drone detection system (e.g., AirSentinel)?")
-    uses_flight_tracking    = forms.BooleanField(required=False, help_text="Will you monitor ADS-B/flight tracking (e.g., FlightAware)?")
-    has_visual_observer     = forms.BooleanField(required=False, help_text="Will Visual Observers be used?")
-    insurance_provider      = forms.CharField(required=False, help_text="Insurance provider name (optional).")
-    insurance_coverage_limit= forms.CharField(required=False, help_text="Coverage limit (e.g., '$5,000,000') (optional).")
-    safety_features_notes   = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 3}), help_text="Safety features, redundancies, geofencing, briefing notes, etc.")
-
-    # -------------------------
-    # Operational Profile
-    # -------------------------
-    aircraft_count          = forms.ChoiceField(required=False, choices=[("", "---------")] + WaiverPlanning.OP_AIRCRAFT_COUNT_CHOICES, help_text="Single/multiple aircraft (sequential/simultaneous).")
-    flight_duration         = forms.CharField(required=False, help_text="Typical flight duration (e.g., 5–10 min).")
-    flights_per_day         = forms.IntegerField(required=False, min_value=0, help_text="Approximate flights per day.")
-    ground_environment      = forms.MultipleChoiceField(required=False, choices=WaiverPlanning.GROUND_ENVIRONMENT_CHOICES, widget=forms.CheckboxSelectMultiple, help_text="Select environment types present.")
-    ground_environment_other= forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 2}), help_text="Add any environment types not listed.")
-    estimated_crowd_size    = forms.CharField(required=False, help_text="Estimated maximum crowd size (optional).")
-    prepared_procedures     = forms.MultipleChoiceField(required=False, choices=WaiverPlanning.PREPARED_PROCEDURES_CHOICES, widget=forms.CheckboxSelectMultiple, help_text="Select procedures/checklists used.")
-
-    operation_area_type     = forms.ChoiceField(required=False, choices=WaiverPlanning._meta.get_field("operation_area_type").choices, help_text="Radius/corridor/polygon/site.")
-    containment_method      = forms.ChoiceField(required=False, choices=[("", "---------")] + WaiverPlanning._meta.get_field("containment_method").choices, help_text="How the area is contained (geofence/markers/etc.).")
-    containment_notes       = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 3}), help_text="How containment is briefed, verified, and enforced on-site.")
-    corridor_length_ft      = forms.IntegerField(required=False, min_value=0, help_text="If corridor operations: length in feet.")
-    corridor_width_ft       = forms.IntegerField(required=False, min_value=0, help_text="If corridor operations: width in feet.")
-    max_groundspeed_mph     = forms.IntegerField(required=False, min_value=0, help_text="Max groundspeed in mph (optional).")
-
-    # -------------------------
-    # Emergency / Lost Link
-    # -------------------------
-    lost_link_behavior      = forms.ChoiceField(required=False, choices=[("", "---------")] + WaiverPlanning._meta.get_field("lost_link_behavior").choices, help_text="RTH / hover / land.")
-    rth_altitude_ft_agl     = forms.IntegerField(required=False, min_value=0, help_text="If using RTH: the programmed RTH altitude (ft AGL).")
-    lost_link_actions       = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 3}), help_text="Step-by-step actions for a lost link.")
-    flyaway_actions         = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 3}), help_text="Step-by-step actions for a flyaway (tracking, last-known location, notifications).")
-
-    # -------------------------
-    # ATC / Communications
-    # -------------------------
-    atc_facility_name       = forms.CharField(required=False, help_text="Tower/TRACON/approach/airport ops facility name if known.")
-    atc_coordination_method = forms.ChoiceField(required=False, choices=[("", "---------")] + WaiverPlanning._meta.get_field("atc_coordination_method").choices, help_text="Phone / radio / both / other.")
-    atc_phone               = forms.CharField(required=False, help_text="If phone coordination: best contact number.")
-    atc_frequency           = forms.CharField(required=False, help_text="If radio coordination: frequency.")
-    atc_checkin_procedure   = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 3}), help_text="When/how you check-in, what info you provide, and termination steps.")
-    atc_deviation_triggers  = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 3}), help_text="Triggers for immediate termination or coordination (traffic, weather, etc.).")
-
-    # -------------------------
-    # Weather & Crew
-    # -------------------------
-    max_wind_mph            = forms.IntegerField(required=False, min_value=0, help_text="Max wind in mph (optional).")
-    min_visibility_sm       = forms.DecimalField(required=False, max_digits=4, decimal_places=1, help_text="Minimum visibility in statute miles (optional).")
-    weather_go_nogo         = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 3}), help_text="Additional go/no-go rules (gust spread, precip, lightning, ceiling).")
-    crew_count              = forms.IntegerField(required=False, min_value=0, help_text="Total crew count (optional).")
-    crew_briefing_procedure = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 3}), help_text="Pre-ops briefing: boundaries, roles, comms, abort triggers.")
-    radio_discipline        = forms.ChoiceField(required=False, choices=[("", "---------")] + WaiverPlanning._meta.get_field("radio_discipline").choices, help_text="Sterile vs standard comms discipline.")
+        help_texts = {
+            "drone": (
+                "Select an active drone from your aircraft inventory. Add the "
+                "drone to your inventory first if it is not listed."
+            ),
+            "planned_payload": (
+                "List any camera, sensor, lighting system, propeller guards, "
+                "parachute, Remote ID module, or other equipment attached for "
+                "this operation. Leave blank for the standard configuration."
+            ),
+            "registration_verified": (
+                "Confirm that the FAA registration is current, displayed on "
+                "the aircraft, and matches the saved aircraft record."
+            ),
+            "remote_id_verified": (
+                "Confirm that Remote ID information has been checked and the "
+                "aircraft will broadcast as required for the operation."
+            ),
+            "preflight_airworthiness_verified": (
+                "Confirm that the aircraft, batteries, propellers, motors, "
+                "sensors, controls, and attached equipment are safe to operate."
+            ),
+            "current_firmware_installed": (
+                "Confirm that the aircraft and controller use the current "
+                "manufacturer-approved firmware, unless a documented reason "
+                "requires another approved version."
+            ),
+            "operation_specific_safety_notes": (
+                "Enter only safety information unique to this aircraft's use "
+                "during this operation. Examples include added lighting, "
+                "propeller guards, payload handling, reduced operating limits, "
+                "special battery procedures, or environmental restrictions. "
+                "Leave blank when the saved drone safety profile fully applies."
+            ),
+        }
+        widgets = {
+            "operation_specific_safety_notes": forms.Textarea(
+                attrs={"rows": 4}
+            ),
+        }
 
     def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)
 
-        # User-scoped dropdowns
-        if user is not None:
-            self.fields["aircraft"].queryset = Drone.objects.filter(user=user, status=Drone.Status.ACTIVE).order_by("manufacturer", "model", "id")
-            self.fields["pilot_profile"].queryset = PilotProfile.objects.filter(user=user).order_by("id")
+        self.fields["drone"].queryset = (
+            Drone.objects.filter(
+                user=user,
+                status=Drone.Status.ACTIVE,
+            ).order_by("manufacturer", "model", "nickname")
+            if user
+            else Drone.objects.none()
+        )
+
+        for field in self.fields.values():
+            if isinstance(field.widget, forms.CheckboxInput):
+                field.widget.attrs.setdefault("class", "form-check-input")
+            elif isinstance(field.widget, forms.Select):
+                field.widget.attrs.setdefault("class", "form-select")
+            else:
+                field.widget.attrs.setdefault("class", "form-control")
 
 
-    def apply_controlled_airspace_validation(self, *, user) -> None:
-        """
-        Run the same controlled-airspace requirements you enforce on the model,
-        but against this worksheet’s cleaned_data.
-        """
-        # Build an in-memory WaiverPlanning instance with your exact field names
-        planning = WaiverPlanning(user=user, **self.cleaned_data)
-        ca_errors = _validate_controlled_airspace_required_fields(planning) or {}
-        for field, msgs in ca_errors.items():
-            if isinstance(msgs, str):
-                msgs = [msgs]
-            for msg in msgs:
-                self.add_error(field, msg)
+class OperationApprovalForm(forms.ModelForm):
+    """
+    Planning-only form for identifying the required FAA approval and
+    developing the safety case.
+    """
+
+    class Meta:
+        model = OperationApproval
+        fields = [
+            "approval_type",
+            "requested_operation",
+            "safety_justification",
+            "risk_mitigations",
+            "equivalent_level_of_safety",
+        ]
+        labels = {
+            "approval_type": "FAA Waiver / Approval Type",
+            "requested_operation": "Requested Operation",
+            "safety_justification": "Safety Justification",
+            "risk_mitigations": "Risk Mitigations",
+            "equivalent_level_of_safety": (
+                "Equivalent Level of Safety"
+            ),
+        }
+        help_texts = {
+            "approval_type": (
+                "Select the FAA waiver or authorization required for this "
+                "operation. The associated regulation is supplied by the "
+                "waiver-type database."
+            ),
+            "requested_operation": (
+                "Describe exactly what you are asking the FAA to permit. "
+                "Include the aircraft, location, operating condition, and "
+                "the specific activity requiring relief or authorization."
+            ),
+            "safety_justification": (
+                "Explain why the proposed operation can be conducted safely "
+                "despite the regulation or restriction involved."
+            ),
+            "risk_mitigations": (
+                "Describe the personnel, procedures, equipment, boundaries, "
+                "communications, and other controls that reduce the identified "
+                "risks."
+            ),
+            "equivalent_level_of_safety": (
+                "Explain how the combined mitigations provide safety equal "
+                "to or greater than operating in full compliance with the "
+                "underlying regulation."
+            ),
+        }
+        widgets = {
+            "requested_operation": forms.Textarea(attrs={"rows": 4}),
+            "safety_justification": forms.Textarea(attrs={"rows": 5}),
+            "risk_mitigations": forms.Textarea(attrs={"rows": 6}),
+            "equivalent_level_of_safety": forms.Textarea(
+                attrs={"rows": 5}
+            ),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.fields["approval_type"].queryset = (
+            ApprovalType.objects.filter(active=True)
+            .order_by("category", "display_order", "name")
+        )
+
+        for field in self.fields.values():
+            if isinstance(field.widget, forms.Select):
+                field.widget.attrs.setdefault("class", "form-select")
+            else:
+                field.widget.attrs.setdefault("class", "form-control")
+
+
+class OperationApprovalTrackingForm(forms.ModelForm):
+    """
+    Submission and issued-approval record. This form is intentionally
+    separate from waiver planning.
+    """
+
+    class Meta:
+        model = OperationApproval
+        fields = [
+            "status",
+            "faa_tracking_number",
+            "approval_number",
+            "approval_document",
+            "submitted_at",
+            "approved_at",
+            "effective_date",
+            "expiration_date",
+            "special_provisions",
+            "reviewer_notes",
+        ]
+        labels = {
+            "status": "Approval Status",
+            "faa_tracking_number": "FAA Tracking Number",
+            "approval_number": "FAA Approval Number",
+            "approval_document": "Issued Approval Document",
+            "submitted_at": "Submitted to FAA",
+            "approved_at": "Approved by FAA",
+            "effective_date": "Effective Date",
+            "expiration_date": "Expiration Date",
+            "special_provisions": (
+                "FAA Special Provisions / Conditions"
+            ),
+            "reviewer_notes": "FAA Correspondence and Reviewer Notes",
+        }
+        help_texts = {
+            "status": (
+                "Update this as the request moves from planning through "
+                "submission, FAA review, approval, denial, or expiration."
+            ),
+            "faa_tracking_number": (
+                "Enter the tracking or reference number issued after the "
+                "request is submitted."
+            ),
+            "approval_number": (
+                "Enter the waiver or authorization number shown on the "
+                "issued approval."
+            ),
+            "approval_document": (
+                "Upload the issued FAA approval, waiver, or authorization."
+            ),
+            "submitted_at": (
+                "Record when the request was submitted to the FAA."
+            ),
+            "approved_at": (
+                "Record when the FAA issued its decision."
+            ),
+            "effective_date": (
+                "Enter the first date on which the approval may be used."
+            ),
+            "expiration_date": (
+                "Enter the final date on which the approval remains valid."
+            ),
+            "special_provisions": (
+                "Copy or summarize the operating conditions and limitations "
+                "included in the issued approval."
+            ),
+            "reviewer_notes": (
+                "Record requests for additional information, FAA feedback, "
+                "correspondence, or internal follow-up notes."
+            ),
+        }
+        widgets = {
+            "submitted_at": forms.DateTimeInput(
+                attrs={"type": "datetime-local"}
+            ),
+            "approved_at": forms.DateTimeInput(
+                attrs={"type": "datetime-local"}
+            ),
+            "effective_date": DateInput(),
+            "expiration_date": DateInput(),
+            "special_provisions": forms.Textarea(attrs={"rows": 5}),
+            "reviewer_notes": forms.Textarea(attrs={"rows": 5}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        for field in self.fields.values():
+            if isinstance(field.widget, forms.Select):
+                field.widget.attrs.setdefault("class", "form-select")
+            else:
+                field.widget.attrs.setdefault("class", "form-control")

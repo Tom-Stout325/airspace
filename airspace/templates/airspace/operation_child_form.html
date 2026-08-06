@@ -1,0 +1,103 @@
+{% extends "index.html" %}
+
+{% block title %}{{ page_title }} | AirSpace{% endblock %}
+
+{% block content %}
+<style>
+  .child-form-shell {
+    max-width: 860px;
+  }
+
+  .child-form-card {
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.75rem;
+    overflow: hidden;
+  }
+
+  .child-form-header {
+    padding: 1rem 1.25rem;
+    background: SteelBlue;
+    color: #fff;
+  }
+
+  .child-form-header h1 {
+    color: #fff;
+  }
+
+  .child-form-header p {
+    color: rgba(255, 255, 255, 0.88);
+  }
+
+  .child-form-check {
+    padding: 0.85rem 1rem 0.85rem 2.5rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.55rem;
+  }
+
+  .child-form-check .form-check-input {
+    margin-left: -1.55rem;
+  }
+</style>
+
+<div class="container child-form-shell py-4">
+  <form method="post" enctype="multipart/form-data" novalidate>
+    {% csrf_token %}
+
+    <div class="card child-form-card shadow-sm">
+      <div class="child-form-header">
+        <h1 class="h3 mb-1">{{ page_title }}</h1>
+        <p class="mb-0">{{ operation.operation_title }}</p>
+      </div>
+
+      <div class="card-body p-4">
+        {% if form.non_field_errors %}
+          <div class="alert alert-danger">
+            {{ form.non_field_errors }}
+          </div>
+        {% endif %}
+
+        <div class="row g-3">
+          {% for field in form %}
+            <div class="{% if field.field.widget.input_type == 'checkbox' %}col-12 col-md-6{% else %}col-12{% endif %}">
+              {% if field.field.widget.input_type == 'checkbox' %}
+                <div class="form-check child-form-check">
+                  {{ field }}
+                  <label class="form-check-label fw-semibold" for="{{ field.id_for_label }}">
+                    {{ field.label }}
+                  </label>
+                </div>
+              {% else %}
+                <label class="form-label fw-semibold" for="{{ field.id_for_label }}">
+                  {{ field.label }}
+                  {% if field.field.required %}
+                    <span class="text-danger" aria-hidden="true">*</span>
+                  {% endif %}
+                </label>
+                {{ field }}
+              {% endif %}
+
+              {% for error in field.errors %}
+                <div class="invalid-feedback d-block">{{ error }}</div>
+              {% endfor %}
+
+              {% if field.help_text %}
+                <div class="form-text">{{ field.help_text }}</div>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="card-footer d-flex flex-column flex-sm-row justify-content-end gap-2 p-3">
+        <a
+          class="btn btn-outline-secondary"
+          href="{% url 'airspace:operations_planning_detail' operation.pk %}"
+        >
+          Cancel
+        </a>
+        <button class="btn btn-warning" type="submit">Save</button>
+      </div>
+    </div>
+  </form>
+</div>
+{% endblock %}

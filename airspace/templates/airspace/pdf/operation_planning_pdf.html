@@ -1,0 +1,959 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{{ operation.operation_title }} - Operation Planning Report</title>
+
+  <style>
+    @page {
+      size: Letter;
+      margin: 0.62in 0.62in 0.72in;
+
+      @bottom-left {
+        content: "AirSpace Operation Planning Report";
+        color: #5f6872;
+        font-size: 8.5pt;
+      }
+
+      @bottom-center {
+        content: "{{ operation.operation_title }}";
+        color: #5f6872;
+        font-size: 8.5pt;
+      }
+
+      @bottom-right {
+        content: "Page " counter(page) " of " counter(pages);
+        color: #5f6872;
+        font-size: 8.5pt;
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      color: #20262d;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 9.5pt;
+      line-height: 1.42;
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin-top: 0;
+    }
+
+    h1 {
+      margin-bottom: 0.08in;
+      color: #1f2b38;
+      font-size: 23pt;
+      line-height: 1.1;
+    }
+
+    h2 {
+      margin: 0;
+      color: #fff;
+      font-size: 12pt;
+    }
+
+    h3 {
+      margin-bottom: 0.06in;
+      color: #2e4458;
+      font-size: 10pt;
+    }
+
+    .cover {
+      min-height: 8.2in;
+      page-break-after: always;
+    }
+
+    .cover-logo {
+      width: 2.45in;
+      max-height: 1.75in;
+      margin-bottom: 0.4in;
+      object-fit: contain;
+    }
+
+    .cover-kicker {
+      margin-bottom: 0.12in;
+      color: SteelBlue;
+      font-size: 11pt;
+      font-weight: bold;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .cover-meta {
+      margin-top: 0.38in;
+      padding: 0.22in;
+      border-left: 0.08in solid SteelBlue;
+      background: #eef4f8;
+    }
+
+    .notice {
+      margin-top: 0.45in;
+      padding: 0.18in;
+      border: 1px solid #b8c3cc;
+      background: #f7f8f9;
+      color: #3f4952;
+      font-size: 9pt;
+    }
+
+    .section {
+      margin: 0 0 0.2in;
+      page-break-inside: avoid;
+    }
+
+    .section-header {
+      margin-bottom: 0.12in;
+      padding: 0.09in 0.12in;
+      background: SteelBlue;
+    }
+
+    .section-body {
+      padding: 0.02in 0.02in 0;
+    }
+
+    .subsection {
+      margin-bottom: 0.14in;
+      page-break-inside: avoid;
+    }
+
+    .data-grid {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+
+    .data-grid th,
+    .data-grid td {
+      padding: 0.07in 0.08in;
+      border: 1px solid #d1d7dc;
+      vertical-align: top;
+      overflow-wrap: anywhere;
+    }
+
+    .data-grid th {
+      width: 31%;
+      background: #f0f3f5;
+      color: #303941;
+      text-align: left;
+      font-weight: bold;
+    }
+
+    .narrative {
+      margin: 0;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .narrative-box {
+      padding: 0.1in;
+      border: 1px solid #d1d7dc;
+      background: #fff;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .muted {
+      color: #69737d;
+    }
+
+    .status-complete {
+      color: #126b3a;
+      font-weight: bold;
+    }
+
+    .status-incomplete {
+      color: #8a5a00;
+      font-weight: bold;
+    }
+
+    .completion-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .completion-table td {
+      padding: 0.06in 0.05in;
+      border-bottom: 1px solid #d8dde1;
+      vertical-align: top;
+    }
+
+    .completion-table td:last-child {
+      width: 27%;
+      text-align: right;
+    }
+
+    .aircraft-card,
+    .approval-card {
+      margin-bottom: 0.14in;
+      padding: 0.12in;
+      border: 1px solid #cbd2d8;
+      page-break-inside: avoid;
+    }
+
+    .card-title {
+      margin-bottom: 0.08in;
+      color: #263746;
+      font-size: 11pt;
+      font-weight: bold;
+    }
+
+    .check-row {
+      margin: 0.03in 0;
+    }
+
+    .check {
+      display: inline-block;
+      width: 0.2in;
+      font-weight: bold;
+    }
+
+    .yes {
+      color: #126b3a;
+    }
+
+    .no {
+      color: #8a3131;
+    }
+
+    .small {
+      font-size: 8.5pt;
+    }
+
+    .page-break {
+      page-break-before: always;
+    }
+
+    .avoid-break {
+      page-break-inside: avoid;
+    }
+
+    ul {
+      margin: 0.04in 0 0.08in 0.22in;
+      padding: 0;
+    }
+
+    .empty {
+      color: #727b83;
+      font-style: italic;
+    }
+  </style>
+</head>
+
+<body>
+  <section class="cover">
+    {% if logo_uri %}
+      <img
+        class="cover-logo"
+        src="{{ logo_uri }}"
+        alt="AirSpace"
+      >
+    {% endif %}
+
+    <div class="cover-kicker">Operation Planning Report</div>
+    <h1>{{ operation.operation_title }}</h1>
+
+    <p class="muted">
+      {{ operation.get_status_display }}
+      {% if operation.start_date %}
+        - {{ operation.start_date|date:"F j, Y" }}
+      {% endif %}
+      {% if operation.end_date %}
+        through {{ operation.end_date|date:"F j, Y" }}
+      {% endif %}
+    </p>
+
+    <div class="cover-meta">
+      <table class="data-grid">
+        <tr>
+          <th>Venue / Site</th>
+          <td>{{ operation.venue_name|default:"Not entered" }}</td>
+        </tr>
+        <tr>
+          <th>Location</th>
+          <td>
+            {{ operation.location_city|default:"" }}
+            {% if operation.location_state %}
+              {{ operation.location_state }}
+            {% endif %}
+          </td>
+        </tr>
+        <tr>
+          <th>Planning Completion</th>
+          <td>
+            {{ operation.completion_percentage }}%
+            ({{ operation.completed_section_count }} of
+            {{ operation.total_section_count }} sections)
+          </td>
+        </tr>
+        <tr>
+          <th>Generated</th>
+          <td>{{ generated_at|date:"F j, Y g:i A T" }}</td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="notice">
+      <strong>Planning reference document.</strong>
+      Verify all information, current regulations, operating conditions,
+      and FAA requirements before entering or submitting information through
+      FAA DroneZone or using this report in the field.
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-header">
+      <h2>Planning Completion</h2>
+    </div>
+    <div class="section-body">
+      <table class="completion-table">
+        {% for section in completion_sections %}
+          <tr>
+            <td>
+              <strong>{{ section.title }}</strong>
+              {% if section.missing %}
+                <div class="small muted">
+                  Missing: {{ section.missing|join:", " }}
+                </div>
+              {% endif %}
+            </td>
+            <td>
+              {% if section.complete %}
+                <span class="status-complete">Complete</span>
+              {% else %}
+                <span class="status-incomplete">Needs attention</span>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </table>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-header">
+      <h2>Operation Details</h2>
+    </div>
+    <div class="section-body">
+      <table class="data-grid">
+        <tr>
+          <th>Mission Description</th>
+          <td class="narrative">
+            {{ operation.operation_description|default:"Not entered" }}
+          </td>
+        </tr>
+        <tr>
+          <th>Operating Dates</th>
+          <td>
+            {{ operation.start_date|date:"F j, Y" }}
+            {% if operation.end_date %}
+              through {{ operation.end_date|date:"F j, Y" }}
+            {% endif %}
+          </td>
+        </tr>
+        <tr>
+          <th>Operating Periods</th>
+          <td>
+            {% if timeframe_labels %}
+              {{ timeframe_labels|join:", " }}
+            {% else %}
+              Not entered
+            {% endif %}
+          </td>
+        </tr>
+        <tr>
+          <th>Frequency</th>
+          <td>{{ operation.get_frequency_display|default:"Not entered" }}</td>
+        </tr>
+        <tr>
+          <th>Local Time Zone</th>
+          <td>{{ operation.local_time_zone|default:"Not entered" }}</td>
+        </tr>
+        <tr>
+          <th>Mission Type</th>
+          <td>
+            {% if purpose_labels %}
+              {{ purpose_labels|join:", " }}
+            {% else %}
+              Not entered
+            {% endif %}
+          </td>
+        </tr>
+        <tr>
+          <th>Mission Details</th>
+          <td class="narrative">
+            {{ operation.purpose_operations_details|default:"Not entered" }}
+          </td>
+        </tr>
+        <tr>
+          <th>Aircraft Deployment</th>
+          <td>{{ operation.get_aircraft_use_display|default:"Not entered" }}</td>
+        </tr>
+        <tr>
+          <th>Maximum Altitude</th>
+          <td>
+            {% if operation.maximum_planned_altitude_agl is not None %}
+              {{ operation.maximum_planned_altitude_agl }} ft AGL
+            {% else %}
+              Not entered
+            {% endif %}
+          </td>
+        </tr>
+        <tr>
+          <th>BVLOS Planned</th>
+          <td>{{ operation.planned_bvlos|yesno:"Yes,No" }}</td>
+        </tr>
+        <tr>
+          <th>Typical Flight Duration</th>
+          <td>{{ operation.flight_duration|default:"Not entered" }}</td>
+        </tr>
+        <tr>
+          <th>Estimated Flights / Day</th>
+          <td>{{ operation.flights_per_day|default:"Not entered" }}</td>
+        </tr>
+      </table>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-header">
+      <h2>Remote Pilot in Command</h2>
+    </div>
+    <div class="section-body">
+      <table class="data-grid">
+        <tr>
+          <th>RPIC</th>
+          <td>{{ pilot_name|default:"Not entered" }}</td>
+        </tr>
+        <tr>
+          <th>FAA Certificate Number</th>
+          <td>{{ pilot_certificate_number|default:"Not entered" }}</td>
+        </tr>
+        <tr>
+          <th>Flight Experience</th>
+          <td>
+            {% if operation.pilot_flight_hours is not None %}
+              {{ operation.pilot_flight_hours }} hours
+            {% else %}
+              Not entered
+            {% endif %}
+          </td>
+        </tr>
+        <tr>
+          <th>Email</th>
+          <td>{{ pilot_email|default:"Not entered" }}</td>
+        </tr>
+        <tr>
+          <th>Phone</th>
+          <td>{{ pilot_phone|default:"Not entered" }}</td>
+        </tr>
+      </table>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-header">
+      <h2>Location and Airspace</h2>
+    </div>
+    <div class="section-body">
+      <table class="data-grid">
+        <tr>
+          <th>Venue / Site</th>
+          <td>{{ operation.venue_name|default:"Not entered" }}</td>
+        </tr>
+        <tr>
+          <th>Address</th>
+          <td>
+            {{ operation.street_address|default:"" }}
+            {% if operation.location_city %}
+              <br>{{ operation.location_city }},
+              {{ operation.location_state }}
+              {{ operation.zip_code }}
+            {% endif %}
+          </td>
+        </tr>
+        <tr>
+          <th>Operation Coordinates</th>
+          <td>
+            {% if operation.location_latitude is not None %}
+              {{ operation.location_latitude }},
+              {{ operation.location_longitude }}
+            {% else %}
+              Not entered
+            {% endif %}
+          </td>
+        </tr>
+        <tr>
+          <th>Primary Launch Site</th>
+          <td>{{ operation.launch_location|default:"Not entered" }}</td>
+        </tr>
+        <tr>
+          <th>Launch Coordinates</th>
+          <td>
+            {% if operation.launch_latitude is not None %}
+              {{ operation.launch_latitude }},
+              {{ operation.launch_longitude }}
+            {% else %}
+              Not entered
+            {% endif %}
+          </td>
+        </tr>
+        <tr>
+          <th>Landing Location</th>
+          <td>{{ operation.recovery_location|default:"Not entered" }}</td>
+        </tr>
+        <tr>
+          <th>Airspace Classification</th>
+          <td>{{ operation.get_airspace_class_display|default:"Not entered" }}</td>
+        </tr>
+        <tr>
+          <th>Nearest Airport</th>
+          <td>
+            {% if operation.nearest_airport_ref %}
+              {{ operation.nearest_airport_ref }}
+            {% else %}
+              {{ operation.nearest_airport|default:"Not entered" }}
+            {% endif %}
+          </td>
+        </tr>
+        <tr>
+          <th>Distance to Airport</th>
+          <td>
+            {% if operation.distance_to_airport_nm is not None %}
+              {{ operation.distance_to_airport_nm }} NM
+            {% else %}
+              Not calculated
+            {% endif %}
+          </td>
+        </tr>
+        <tr>
+          <th>Operational Area Geometry</th>
+          <td>{{ operation.get_operation_area_type_display }}</td>
+        </tr>
+        <tr>
+          <th>Operational Area Description</th>
+          <td class="narrative">
+            {{ operation.operation_area_description|default:"Not entered" }}
+          </td>
+        </tr>
+        <tr>
+          <th>Containment Method</th>
+          <td>{{ operation.get_containment_method_display|default:"Not entered" }}</td>
+        </tr>
+        <tr>
+          <th>Containment Procedures</th>
+          <td class="narrative">
+            {{ operation.containment_notes|default:"Not entered" }}
+          </td>
+        </tr>
+      </table>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-header">
+      <h2>Assigned Aircraft</h2>
+    </div>
+    <div class="section-body">
+      {% for item in aircraft_assignments %}
+        <article class="aircraft-card">
+          <div class="card-title">{{ item.drone }}</div>
+
+          <table class="data-grid">
+            <tr>
+              <th>Manufacturer / Model</th>
+              <td>
+                {{ item.drone.manufacturer }}
+                {{ item.drone.model }}
+              </td>
+            </tr>
+            <tr>
+              <th>Nickname</th>
+              <td>{{ item.drone.nickname|default:"None" }}</td>
+            </tr>
+            <tr>
+              <th>Serial Number</th>
+              <td>{{ item.drone.serial_number|default:"Not entered" }}</td>
+            </tr>
+            <tr>
+              <th>FAA Registration</th>
+              <td>
+                {{ item.drone.faa_registration_number|default:"Not entered" }}
+              </td>
+            </tr>
+            <tr>
+              <th>Payload / Attached Equipment</th>
+              <td>{{ item.planned_payload|default:"Standard configuration" }}</td>
+            </tr>
+          </table>
+
+          <div class="subsection">
+            <h3>Readiness Confirmations</h3>
+            <div class="check-row">
+              <span class="check {% if item.registration_verified %}yes{% else %}no{% endif %}">
+                {% if item.registration_verified %}YES{% else %}NO{% endif %}
+              </span>
+              FAA registration verified
+            </div>
+            <div class="check-row">
+              <span class="check {% if item.remote_id_verified %}yes{% else %}no{% endif %}">
+                {% if item.remote_id_verified %}YES{% else %}NO{% endif %}
+              </span>
+              Remote ID verified
+            </div>
+            <div class="check-row">
+              <span class="check {% if item.preflight_airworthiness_verified %}yes{% else %}no{% endif %}">
+                {% if item.preflight_airworthiness_verified %}YES{% else %}NO{% endif %}
+              </span>
+              Aircraft airworthiness verified
+            </div>
+            <div class="check-row">
+              <span class="check {% if item.current_firmware_installed %}yes{% else %}no{% endif %}">
+                {% if item.current_firmware_installed %}YES{% else %}NO{% endif %}
+              </span>
+              Current firmware installed
+            </div>
+          </div>
+
+          <div class="subsection">
+            <h3>Aircraft Safety Features</h3>
+            <div class="narrative-box">
+              {{ item.safety_features_snapshot|default:"No saved safety features." }}
+            </div>
+          </div>
+
+          {% if item.operation_specific_safety_notes %}
+            <div class="subsection">
+              <h3>Aircraft-Specific Safety Notes</h3>
+              <div class="narrative-box">
+                {{ item.operation_specific_safety_notes }}
+              </div>
+            </div>
+          {% endif %}
+        </article>
+      {% empty %}
+        <p class="empty">No aircraft have been assigned.</p>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-header">
+      <h2>Ground and Air Risk Controls</h2>
+    </div>
+    <div class="section-body">
+      <table class="data-grid">
+        <tr>
+          <th>Ground Environment</th>
+          <td>
+            {% if ground_environment_labels %}
+              {{ ground_environment_labels|join:", " }}
+            {% else %}
+              Not entered
+            {% endif %}
+          </td>
+        </tr>
+        <tr>
+          <th>Other Environment Details</th>
+          <td class="narrative">
+            {{ operation.ground_environment_other|default:"Not entered" }}
+          </td>
+        </tr>
+        <tr>
+          <th>Estimated Crowd Size</th>
+          <td>{{ operation.estimated_crowd_size|default:"Not entered" }}</td>
+        </tr>
+        <tr>
+          <th>Ground Risk Controls</th>
+          <td class="narrative">
+            {{ operation.ground_risk_mitigation|default:"Not entered" }}
+          </td>
+        </tr>
+        <tr>
+          <th>Airspace Risk Controls</th>
+          <td class="narrative">
+            {{ operation.air_risk_mitigation|default:"Not entered" }}
+          </td>
+        </tr>
+        <tr>
+          <th>Visual Observer Used</th>
+          <td>{{ operation.has_visual_observer|yesno:"Yes,No" }}</td>
+        </tr>
+        <tr>
+          <th>Crewed Aircraft Traffic Awareness Used</th>
+          <td>{{ operation.uses_flight_tracking|yesno:"Yes,No" }}</td>
+        </tr>
+        <tr>
+          <th>Drone Detection System Used</th>
+          <td>{{ operation.uses_drone_detection|yesno:"Yes,No" }}</td>
+        </tr>
+      </table>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-header">
+      <h2>Lost Link and Emergency Response</h2>
+    </div>
+    <div class="section-body">
+      <table class="data-grid">
+        <tr>
+          <th>Programmed Lost-Link Behavior</th>
+          <td>{{ operation.get_lost_link_behavior_display|default:"Not entered" }}</td>
+        </tr>
+        <tr>
+          <th>RTH Altitude</th>
+          <td>
+            {% if operation.rth_altitude_ft_agl is not None %}
+              {{ operation.rth_altitude_ft_agl }} ft AGL
+            {% else %}
+              Not entered
+            {% endif %}
+          </td>
+        </tr>
+        <tr>
+          <th>Lost-Link Procedures</th>
+          <td class="narrative">
+            {{ operation.lost_link_actions|default:"Not entered" }}
+          </td>
+        </tr>
+        <tr>
+          <th>Flyaway Procedures</th>
+          <td class="narrative">
+            {{ operation.flyaway_actions|default:"Not entered" }}
+          </td>
+        </tr>
+        <tr>
+          <th>Emergency Response Procedures</th>
+          <td class="narrative">
+            {{ operation.emergency_response_plan|default:"Not entered" }}
+          </td>
+        </tr>
+        <tr>
+          <th>Emergency Landing Areas</th>
+          <td class="narrative">
+            {{ operation.emergency_landing_areas|default:"Not entered" }}
+          </td>
+        </tr>
+        <tr>
+          <th>Injury / Property Damage Response</th>
+          <td class="narrative">
+            {{ operation.injury_or_property_damage_actions|default:"Not entered" }}
+          </td>
+        </tr>
+        <tr>
+          <th>Incident Reporting</th>
+          <td class="narrative">
+            {{ operation.incident_reporting_procedure|default:"Not entered" }}
+          </td>
+        </tr>
+        <tr>
+          <th>Suspension / Termination Criteria</th>
+          <td class="narrative">
+            {{ operation.termination_conditions|default:"Not entered" }}
+          </td>
+        </tr>
+      </table>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-header">
+      <h2>Weather, Night Operations, and Crew</h2>
+    </div>
+    <div class="section-body">
+      <table class="data-grid">
+        <tr>
+          <th>Maximum Operating Wind</th>
+          <td>
+            {% if operation.max_wind_mph is not None %}
+              {{ operation.max_wind_mph }} MPH
+            {% else %}
+              Not entered
+            {% endif %}
+          </td>
+        </tr>
+        <tr>
+          <th>Operator Minimum Visibility</th>
+          <td>
+            {% if operation.min_visibility_sm is not None %}
+              {{ operation.min_visibility_sm }} statute miles
+            {% else %}
+              Not entered
+            {% endif %}
+          </td>
+        </tr>
+        <tr>
+          <th>Operator Minimum Cloud Ceiling</th>
+          <td>
+            {% if operation.minimum_cloud_ceiling_ft is not None %}
+              {{ operation.minimum_cloud_ceiling_ft }} ft
+            {% else %}
+              Not entered
+            {% endif %}
+          </td>
+        </tr>
+        <tr>
+          <th>Weather Sources</th>
+          <td>{{ operation.weather_source|default:"Not entered" }}</td>
+        </tr>
+        <tr>
+          <th>Weather Go / No-Go Criteria</th>
+          <td class="narrative">
+            {{ operation.weather_go_nogo|default:"Not entered" }}
+          </td>
+        </tr>
+        <tr>
+          <th>Night Lighting Plan</th>
+          <td class="narrative">
+            {{ operation.night_lighting_description|default:"Not entered" }}
+          </td>
+        </tr>
+        <tr>
+          <th>Total Crew Members</th>
+          <td>{{ operation.crew_count|default:"Not entered" }}</td>
+        </tr>
+        <tr>
+          <th>Crew Communications Method</th>
+          <td>{{ operation.crew_communications_method|default:"Not entered" }}</td>
+        </tr>
+        <tr>
+          <th>Communications Failure Procedures</th>
+          <td class="narrative">
+            {{ operation.communications_failure_actions|default:"Not entered" }}
+          </td>
+        </tr>
+        <tr>
+          <th>Crew Briefing Notes</th>
+          <td class="narrative">
+            {{ operation.crew_briefing_procedure|default:"Not entered" }}
+          </td>
+        </tr>
+        <tr>
+          <th>Prepared Procedures</th>
+          <td>
+            {% if prepared_procedure_labels %}
+              {{ prepared_procedure_labels|join:", " }}
+            {% else %}
+              Not entered
+            {% endif %}
+          </td>
+        </tr>
+      </table>
+    </div>
+  </section>
+
+  <section class="section page-break">
+    <div class="section-header">
+      <h2>Required FAA Waivers and Approvals</h2>
+    </div>
+    <div class="section-body">
+      {% for item in approvals %}
+        <article class="approval-card">
+          <div class="card-title">{{ item.approval_type }}</div>
+
+          <table class="data-grid">
+            <tr>
+              <th>Associated Regulation</th>
+              <td>{{ item.regulation_display|default:"Not specified" }}</td>
+            </tr>
+            <tr>
+              <th>Planning Status</th>
+              <td>
+                {% if item.planning_complete %}
+                  Complete
+                {% else %}
+                  Needs attention
+                {% endif %}
+              </td>
+            </tr>
+            <tr>
+              <th>Approval Status</th>
+              <td>{{ item.get_status_display }}</td>
+            </tr>
+            <tr>
+              <th>Requested Operation</th>
+              <td class="narrative">
+                {{ item.requested_operation|default:"Not entered" }}
+              </td>
+            </tr>
+            <tr>
+              <th>Safety Justification</th>
+              <td class="narrative">
+                {{ item.safety_justification|default:"Not entered" }}
+              </td>
+            </tr>
+            <tr>
+              <th>Risk Mitigations</th>
+              <td class="narrative">
+                {{ item.risk_mitigations|default:"Not entered" }}
+              </td>
+            </tr>
+            <tr>
+              <th>Equivalent Level of Safety</th>
+              <td class="narrative">
+                {{ item.equivalent_level_of_safety|default:"Not entered" }}
+              </td>
+            </tr>
+          </table>
+
+          {% if item.faa_tracking_number or item.approval_number or item.approval_document or item.submitted_at or item.approved_at or item.effective_date or item.expiration_date or item.special_provisions or item.reviewer_notes %}
+            <div class="subsection">
+              <h3>FAA Submission and Approval Record</h3>
+              <table class="data-grid">
+                <tr>
+                  <th>FAA Tracking Number</th>
+                  <td>{{ item.faa_tracking_number|default:"Not entered" }}</td>
+                </tr>
+                <tr>
+                  <th>Approval Number</th>
+                  <td>{{ item.approval_number|default:"Not entered" }}</td>
+                </tr>
+                <tr>
+                  <th>Submitted</th>
+                  <td>{{ item.submitted_at|date:"F j, Y g:i A"|default:"Not entered" }}</td>
+                </tr>
+                <tr>
+                  <th>Approved</th>
+                  <td>{{ item.approved_at|date:"F j, Y g:i A"|default:"Not entered" }}</td>
+                </tr>
+                <tr>
+                  <th>Effective Date</th>
+                  <td>{{ item.effective_date|date:"F j, Y"|default:"Not entered" }}</td>
+                </tr>
+                <tr>
+                  <th>Expiration Date</th>
+                  <td>{{ item.expiration_date|date:"F j, Y"|default:"Not entered" }}</td>
+                </tr>
+                <tr>
+                  <th>Special Provisions</th>
+                  <td class="narrative">
+                    {{ item.special_provisions|default:"Not entered" }}
+                  </td>
+                </tr>
+                <tr>
+                  <th>Reviewer Notes</th>
+                  <td class="narrative">
+                    {{ item.reviewer_notes|default:"Not entered" }}
+                  </td>
+                </tr>
+              </table>
+            </div>
+          {% endif %}
+        </article>
+      {% empty %}
+        <p class="empty">
+          No FAA waivers or approvals have been selected.
+        </p>
+      {% endfor %}
+    </div>
+  </section>
+</body>
+</html>

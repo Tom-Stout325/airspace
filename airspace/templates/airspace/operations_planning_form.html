@@ -1,0 +1,670 @@
+{% extends "index.html" %}
+
+{% block title %}{{ page_title }} | AirSpace{% endblock %}
+
+{% block content %}
+<style>
+  .operation-form-shell {
+    max-width: 1180px;
+  }
+
+  .operation-form-intro {
+    max-width: 760px;
+  }
+
+  .operation-section {
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.75rem;
+    background: var(--bs-body-bg);
+    box-shadow: 0 0.125rem 0.35rem rgba(0, 0, 0, 0.055);
+    overflow: hidden;
+  }
+
+  .operation-section + .operation-section {
+    margin-top: 1.25rem;
+  }
+
+  .operation-section {
+    scroll-margin-top: 6rem;
+  }
+
+  .operation-section:target {
+    outline: 3px solid rgba(255, 193, 7, 0.55);
+    outline-offset: 0.2rem;
+    animation: operation-section-highlight 1.8s ease-out;
+  }
+
+  @keyframes operation-section-highlight {
+    0% {
+      box-shadow: 0 0 0 0.45rem rgba(255, 193, 7, 0.28);
+    }
+    100% {
+      box-shadow: 0 0 0 0 rgba(255, 193, 7, 0);
+    }
+  }
+
+  .operation-section-header {
+    padding: 1rem 1.1rem;
+    border-bottom: 1px solid var(--bs-border-color);
+    background: SteelBlue;
+    color: #fff;
+  }
+
+  .operation-section-header h2 {
+    font-size: 1.05rem;
+    margin: 0;
+    color: #fff;
+    font-weight: 600;
+  }
+
+  .operation-section-header p {
+    margin: 0.3rem 0 0;
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.88);
+  }
+
+  .operation-section-body {
+    padding: 1.1rem;
+  }
+
+  .operation-choice-fieldset {
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  .operation-choice-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.65rem;
+  }
+
+  .operation-choice-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.55rem;
+    min-width: 0;
+    margin: 0;
+    padding: 0.65rem 0.75rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.55rem;
+    background: var(--bs-body-bg);
+  }
+
+  .operation-choice-item .form-check-input {
+    flex: 0 0 auto;
+    margin: 0.15rem 0 0;
+  }
+
+  .operation-choice-item .form-check-label {
+    min-width: 0;
+    line-height: 1.35;
+  }
+
+  .operation-boolean-field {
+    padding: 0.75rem 0.85rem 0.75rem 2.35rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.55rem;
+    background: var(--bs-body-bg);
+  }
+
+  .operation-boolean-field .form-check-input {
+    margin-left: -1.5rem;
+  }
+
+  .operation-advanced summary {
+    cursor: pointer;
+    font-weight: 600;
+  }
+
+  .operation-reference-note {
+    border-left: 0.25rem solid SteelBlue;
+    background: var(--bs-tertiary-bg);
+  }
+
+  .address-search-panel {
+    padding: 1rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.65rem;
+    background: var(--bs-tertiary-bg);
+  }
+
+  .address-search-results {
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  .address-result {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.5rem;
+    background: var(--bs-body-bg);
+    color: var(--bs-body-color);
+    text-align: left;
+  }
+
+  .address-result:hover,
+  .address-result:focus {
+    border-color: SteelBlue;
+    box-shadow: 0 0 0 0.2rem rgba(70, 130, 180, 0.18);
+  }
+
+  .nearest-airport-summary {
+    border-left: 0.25rem solid SteelBlue;
+  }
+
+  .operation-form-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
+    margin-top: 1.5rem;
+    padding: 0.9rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.75rem;
+    background: color-mix(in srgb, var(--bs-body-bg) 94%, transparent);
+    backdrop-filter: blur(8px);
+    box-shadow: 0 -0.2rem 1rem rgba(0, 0, 0, 0.07);
+  }
+
+  textarea.form-control {
+    min-height: 7rem;
+  }
+
+  @media (min-width: 768px) {
+    .operation-choice-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .operation-section-header,
+    .operation-section-body {
+      padding-left: 1.35rem;
+      padding-right: 1.35rem;
+    }
+  }
+
+  @media (min-width: 1200px) {
+    .operation-choice-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+</style>
+
+<div class="container operation-form-shell py-4">
+  <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-start gap-3 mb-4">
+    <div class="operation-form-intro">
+      <h1 class="h3 mb-1">{{ page_title }}</h1>
+      <p class="text-muted mb-0">
+        Build the operation first. Aircraft and FAA approvals are attached after the initial save.
+      </p>
+    </div>
+    <a class="btn btn-outline-secondary flex-shrink-0" href="{% url 'airspace:operations_planning_list' %}">
+      Back to plans
+    </a>
+  </div>
+
+  <form method="post" enctype="multipart/form-data" novalidate>
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+      <div class="alert alert-danger" role="alert">
+        {{ form.non_field_errors }}
+      </div>
+    {% endif %}
+
+    <section class="operation-section" id="operation-details">
+      <div class="operation-section-header">
+        <h2>Operation details</h2>
+        <p class="text-muted">Identify the operation, proposed dates, schedule, and current planning status.</p>
+      </div>
+      <div class="operation-section-body">
+        <div class="row g-3">
+          {% include "airspace/partials/_field.html" with field=form.operation_title column_class="col-12 col-lg-8" %}
+          {% include "airspace/partials/_field.html" with field=form.status column_class="col-12 col-lg-4" %}
+          {% include "airspace/partials/_field.html" with field=form.operation_description column_class="col-12" %}
+          {% include "airspace/partials/_field.html" with field=form.start_date %}
+          {% include "airspace/partials/_field.html" with field=form.end_date %}
+          {% include "airspace/partials/_checkbox_group.html" with field=form.timeframe %}
+          {% include "airspace/partials/_field.html" with field=form.frequency %}
+          {% include "airspace/partials/_field.html" with field=form.local_time_zone %}
+        </div>
+      </div>
+    </section>
+
+    <section class="operation-section">
+      <div class="operation-section-header">
+        <h2>Mission and Aircraft Deployment</h2>
+        <p class="text-muted">Describe why the operation is being conducted and how aircraft will be used.</p>
+      </div>
+      <div class="operation-section-body">
+        <div class="row g-3">
+          {% include "airspace/partials/_checkbox_group.html" with field=form.purpose_operations %}
+          {% include "airspace/partials/_field.html" with field=form.purpose_operations_details column_class="col-12" %}
+          {% include "airspace/partials/_field.html" with field=form.aircraft_use %}
+        </div>
+      </div>
+    </section>
+
+    <section class="operation-section" id="remote-pilot">
+      <div class="operation-section-header">
+        <h2>Primary pilot</h2>
+        <p class="text-muted">Select the pilot profile or enter temporary pilot information for planning.</p>
+      </div>
+      <div class="operation-section-body">
+        <div class="row g-3">
+          {% include "airspace/partials/_field.html" with field=form.pilot_profile %}
+          {% include "airspace/partials/_field.html" with field=form.pilot_flight_hours %}
+          {% include "airspace/partials/_field.html" with field=form.pilot_name_manual %}
+          {% include "airspace/partials/_field.html" with field=form.pilot_cert_manual %}
+        </div>
+      </div>
+    </section>
+
+    <section class="operation-section" id="location-airspace">
+      <div class="operation-section-header">
+        <h2>Venue and location</h2>
+        <p class="text-muted">Define the operation site, launch point, recovery area, and nearby airspace references.</p>
+      </div>
+      <div
+        class="operation-section-body"
+        id="operation-location-section"
+        data-address-search-url="{% url 'airspace:address_search' %}"
+        data-nearest-airport-url="{% url 'airspace:nearest_airport_lookup' %}"
+      >
+        <div class="address-search-panel mb-4">
+          <label class="form-label fw-semibold" for="{{ form.address_search.id_for_label }}">
+            {{ form.address_search.label }}
+          </label>
+
+          <div class="input-group">
+            {{ form.address_search }}
+            <button
+              class="btn btn-primary"
+              id="address-search-button"
+              type="button"
+            >
+              Search
+            </button>
+          </div>
+
+          {% if form.address_search.help_text %}
+            <div class="form-text">{{ form.address_search.help_text }}</div>
+          {% endif %}
+
+          <div
+            class="small mt-2"
+            id="address-search-status"
+            role="status"
+            aria-live="polite"
+          ></div>
+
+          <div
+            class="address-search-results mt-3"
+            id="address-search-results"
+          ></div>
+
+          <div class="form-text mt-3">
+            Search results © OpenStreetMap contributors. Search is sent only
+            when you press the Search button; this form does not use type-ahead
+            geocoding.
+          </div>
+        </div>
+
+        <div class="row g-3">
+          {% include "airspace/partials/_field.html" with field=form.venue_name column_class="col-12" %}
+          {% include "airspace/partials/_field.html" with field=form.street_address column_class="col-12" %}
+          {% include "airspace/partials/_field.html" with field=form.location_city %}
+          {% include "airspace/partials/_field.html" with field=form.location_state %}
+          {% include "airspace/partials/_field.html" with field=form.zip_code %}
+          {% include "airspace/partials/_field.html" with field=form.airspace_class %}
+          {% include "airspace/partials/_field.html" with field=form.location_latitude %}
+          {% include "airspace/partials/_field.html" with field=form.location_longitude %}
+          {% include "airspace/partials/_field.html" with field=form.launch_location column_class="col-12" %}
+          {% include "airspace/partials/_field.html" with field=form.launch_latitude %}
+          {% include "airspace/partials/_field.html" with field=form.launch_longitude %}
+          {% include "airspace/partials/_field.html" with field=form.recovery_location column_class="col-12" %}
+          {% include "airspace/partials/_field.html" with field=form.nearest_airport_ref %}
+          {% include "airspace/partials/_field.html" with field=form.nearest_airport %}
+          <div class="col-12">
+            <div
+              class="alert alert-light nearest-airport-summary mb-0 d-none"
+              id="nearest-airport-summary"
+              role="status"
+              aria-live="polite"
+            ></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="operation-section">
+      <div class="operation-section-header">
+        <h2>Operation area and containment</h2>
+        <p class="text-muted">Describe the lateral boundaries and methods used to keep the aircraft inside the approved area.</p>
+      </div>
+      <div class="operation-section-body">
+        <div class="row g-3">
+          {% include "airspace/partials/_field.html" with field=form.operation_area_type %}
+          {% include "airspace/partials/_field.html" with field=form.containment_method %}
+          {% include "airspace/partials/_field.html" with field=form.operation_area_description column_class="col-12" %}
+          {% include "airspace/partials/_field.html" with field=form.containment_notes column_class="col-12" %}
+        </div>
+
+        <div class="alert operation-reference-note mt-4 mb-0" role="note">
+          The exact boundary will be drawn on an attached map. Radius, corridor dimensions, and GeoJSON are not entered manually on this form.
+        </div>
+
+      </div>
+    </section>
+
+    <section class="operation-section">
+      <div class="operation-section-header">
+        <h2>Flight profile</h2>
+        <p class="text-muted">Define planned altitude, speed, distance, duration, and visual-line-of-sight characteristics.</p>
+      </div>
+      <div class="operation-section-body">
+        <div class="row g-3">
+          {% include "airspace/partials/_field.html" with field=form.maximum_planned_altitude_agl %}
+          {% include "airspace/partials/_field.html" with field=form.flight_duration %}
+          {% include "airspace/partials/_field.html" with field=form.flights_per_day %}
+          {% include "airspace/partials/_boolean_field.html" with field=form.planned_bvlos %}
+        </div>
+      </div>
+    </section>
+
+    <section class="operation-section" id="risk-emergency-planning">
+      <div class="operation-section-header">
+        <h2>Ground environment and risk</h2>
+        <p class="text-muted">Identify people, property, roads, terrain, and the mitigations used to reduce ground and air risk.</p>
+      </div>
+      <div class="operation-section-body">
+        <div class="row g-3">
+          {% include "airspace/partials/_checkbox_group.html" with field=form.ground_environment %}
+          {% include "airspace/partials/_field.html" with field=form.ground_environment_other column_class="col-12" %}
+          {% include "airspace/partials/_field.html" with field=form.estimated_crowd_size %}
+          {% include "airspace/partials/_field.html" with field=form.ground_risk_mitigation column_class="col-12" %}
+          {% include "airspace/partials/_field.html" with field=form.air_risk_mitigation column_class="col-12" %}
+        </div>
+      </div>
+    </section>
+
+    <section class="operation-section">
+      <div class="operation-section-header">
+        <h2>Safety systems and insurance</h2>
+        <p class="text-muted">Record supporting technology, visual-observer use, aircraft safety features, and insurance.</p>
+      </div>
+      <div class="operation-section-body">
+        <div class="row g-3">
+          {% include "airspace/partials/_boolean_field.html" with field=form.uses_drone_detection %}
+          {% include "airspace/partials/_boolean_field.html" with field=form.uses_flight_tracking %}
+          {% include "airspace/partials/_boolean_field.html" with field=form.has_visual_observer %}
+          {% include "airspace/partials/_field.html" with field=form.insurance_provider %}
+          {% include "airspace/partials/_field.html" with field=form.insurance_coverage_limit %}
+        </div>
+
+        <div class="alert operation-reference-note mt-4 mb-0" role="note">
+          Aircraft safety features will be populated from each assigned drone after the operation is saved.
+        </div>
+      </div>
+    </section>
+
+    <section class="operation-section" id="emergency-response-planning">
+      <div class="operation-section-header">
+        <h2>Lost link and emergency response</h2>
+        <p class="text-muted">Define aircraft behavior, crew actions, emergency landing areas, and termination criteria.</p>
+      </div>
+      <div class="operation-section-body">
+        <div class="row g-3">
+          {% include "airspace/partials/_field.html" with field=form.lost_link_behavior %}
+          {% include "airspace/partials/_field.html" with field=form.rth_altitude_ft_agl %}
+          {% include "airspace/partials/_field.html" with field=form.lost_link_actions column_class="col-12" %}
+          {% include "airspace/partials/_field.html" with field=form.flyaway_actions column_class="col-12" %}
+          {% include "airspace/partials/_field.html" with field=form.emergency_response_plan column_class="col-12" %}
+          {% include "airspace/partials/_field.html" with field=form.emergency_landing_areas column_class="col-12" %}
+          {% include "airspace/partials/_field.html" with field=form.injury_or_property_damage_actions column_class="col-12" %}
+          {% include "airspace/partials/_field.html" with field=form.incident_reporting_procedure column_class="col-12" %}
+          {% include "airspace/partials/_field.html" with field=form.termination_conditions column_class="col-12" %}
+        </div>
+      </div>
+    </section>
+
+    <section class="operation-section">
+      <div class="operation-section-header">
+        <h2>Crew Communications</h2>
+        <p class="text-muted">Describe how the operational crew will communicate and what happens if required communications fail.</p>
+      </div>
+      <div class="operation-section-body">
+        <div class="row g-3">
+          {% include "airspace/partials/_field.html" with field=form.crew_communications_method %}
+          {% include "airspace/partials/_field.html" with field=form.communications_failure_actions column_class="col-12" %}
+        </div>
+        <div class="alert operation-reference-note mt-4 mb-0" role="note">
+          ATC facility selection and controlled-airspace coordination procedures will be completed within the related FAA approval.
+        </div>
+      </div>
+    </section>
+
+    <section class="operation-section">
+      <div class="operation-section-header">
+        <h2>Weather and night operations</h2>
+        <p class="text-muted">Set measurable weather limits and describe sources, go/no-go decisions, and night lighting.</p>
+      </div>
+      <div class="operation-section-body">
+        <div class="row g-3">
+          {% include "airspace/partials/_field.html" with field=form.max_wind_mph %}
+          {% include "airspace/partials/_field.html" with field=form.min_visibility_sm %}
+          {% include "airspace/partials/_field.html" with field=form.minimum_cloud_ceiling_ft %}
+          {% include "airspace/partials/_field.html" with field=form.weather_source %}
+          {% include "airspace/partials/_field.html" with field=form.weather_go_nogo column_class="col-12" %}
+          {% include "airspace/partials/_field.html" with field=form.night_lighting_description column_class="col-12" %}
+        </div>
+
+        <div class="alert operation-reference-note mt-4 mb-0" role="note">
+          Standard Part 107 reference values: at least 3 statute miles of flight visibility, 500 feet below clouds, and 2,000 feet horizontally from clouds. Enter more conservative operator limits above when appropriate.
+        </div>
+      </div>
+    </section>
+
+    <section class="operation-section">
+      <div class="operation-section-header">
+        <h2>Crew and prepared procedures</h2>
+        <p class="text-muted">Record crew size, briefing procedures, and documented operating procedures.</p>
+      </div>
+      <div class="operation-section-body">
+        <div class="row g-3">
+          {% include "airspace/partials/_field.html" with field=form.crew_count %}
+          {% include "airspace/partials/_field.html" with field=form.crew_briefing_procedure column_class="col-12" %}
+          {% include "airspace/partials/_checkbox_group.html" with field=form.prepared_procedures %}
+        </div>
+      </div>
+    </section>
+
+    <div class="operation-form-actions d-flex flex-column flex-sm-row justify-content-end gap-2">
+      <a class="btn btn-outline-secondary" href="{% url 'airspace:operations_planning_list' %}">
+        Cancel
+      </a>
+      <button class="btn btn-warning" type="submit">
+        Save operation
+      </button>
+    </div>
+  </form>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  const locationSection = document.getElementById("operation-location-section");
+  if (!locationSection) {
+    return;
+  }
+
+  const searchInput = document.getElementById("id_address_search");
+  const searchButton = document.getElementById("address-search-button");
+  const status = document.getElementById("address-search-status");
+  const resultsContainer = document.getElementById("address-search-results");
+  const airportSummary = document.getElementById("nearest-airport-summary");
+
+  const addressSearchUrl = locationSection.dataset.addressSearchUrl;
+  const nearestAirportUrl = locationSection.dataset.nearestAirportUrl;
+
+  const fields = {
+    street: document.getElementById("id_street_address"),
+    city: document.getElementById("id_location_city"),
+    state: document.getElementById("id_location_state"),
+    zip: document.getElementById("id_zip_code"),
+    latitude: document.getElementById("id_location_latitude"),
+    longitude: document.getElementById("id_location_longitude"),
+    airport: document.getElementById("id_nearest_airport_ref"),
+    airportIdentifier: document.getElementById("id_nearest_airport"),
+  };
+
+  function setStatus(message, isError = false) {
+    status.textContent = message;
+    status.className = isError
+      ? "small mt-2 text-danger"
+      : "small mt-2 text-muted";
+  }
+
+  function clearResults() {
+    resultsContainer.replaceChildren();
+  }
+
+  function coordinateToSixDecimals(value) {
+    const coordinate = Number.parseFloat(value);
+
+    if (!Number.isFinite(coordinate)) {
+      return "";
+    }
+
+    return coordinate.toFixed(6);
+  }
+
+  function createResultButton(result) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "address-result";
+    button.textContent = result.display_name;
+    button.addEventListener("click", () => selectAddress(result));
+    return button;
+  }
+
+  async function searchAddress() {
+    const query = searchInput.value.trim();
+    if (query.length < 3) {
+      setStatus("Enter at least three characters.", true);
+      searchInput.focus();
+      return;
+    }
+
+    searchButton.disabled = true;
+    clearResults();
+    setStatus("Searching OpenStreetMap…");
+
+    try {
+      const response = await fetch(
+        `${addressSearchUrl}?q=${encodeURIComponent(query)}`,
+        {
+          headers: {
+            "X-Requested-With": "XMLHttpRequest",
+          },
+        }
+      );
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Address search failed.");
+      }
+
+      if (!data.results.length) {
+        setStatus("No matching locations were found.");
+        return;
+      }
+
+      data.results.forEach((result) => {
+        resultsContainer.appendChild(createResultButton(result));
+      });
+      setStatus("Select the correct location from the results below.");
+    } catch (error) {
+      setStatus(error.message || "Address search failed.", true);
+    } finally {
+      searchButton.disabled = false;
+    }
+  }
+
+  async function selectAddress(result) {
+    if (fields.street && result.street_address) {
+      fields.street.value = result.street_address;
+    }
+    if (fields.city && result.city) {
+      fields.city.value = result.city;
+    }
+    if (fields.state && result.state) {
+      fields.state.value = result.state;
+    }
+    if (fields.zip && result.zip_code) {
+      fields.zip.value = result.zip_code;
+    }
+    if (fields.latitude) {
+      fields.latitude.value = coordinateToSixDecimals(result.latitude);
+    }
+    if (fields.longitude) {
+      fields.longitude.value = coordinateToSixDecimals(result.longitude);
+    }
+
+    searchInput.value = result.display_name;
+    clearResults();
+    setStatus("Address and coordinates populated.");
+
+    if (result.latitude && result.longitude) {
+      await populateNearestAirport(result.latitude, result.longitude);
+    }
+  }
+
+  async function populateNearestAirport(latitude, longitude) {
+    airportSummary.classList.remove("d-none");
+    airportSummary.textContent = "Finding the nearest imported FAA facility…";
+
+    try {
+      const response = await fetch(
+        `${nearestAirportUrl}?lat=${encodeURIComponent(latitude)}&lon=${encodeURIComponent(longitude)}`,
+        {
+          headers: {
+            "X-Requested-With": "XMLHttpRequest",
+          },
+        }
+      );
+      const data = await response.json();
+
+      if (!response.ok || !data.found) {
+        throw new Error(data.error || "No nearby airport was found.");
+      }
+
+      const airport = data.airport;
+      if (fields.airport) {
+        fields.airport.value = String(airport.id);
+      }
+      if (fields.airportIdentifier) {
+        fields.airportIdentifier.value = airport.identifier || "";
+      }
+
+      airportSummary.textContent =
+        `${airport.label} — ${airport.distance_nm} NM from the operation location.`;
+    } catch (error) {
+      airportSummary.textContent =
+        `${error.message || "Nearest-airport lookup failed."} ` +
+        "You may select an airport manually.";
+    }
+  }
+
+  searchButton.addEventListener("click", searchAddress);
+  searchInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      searchAddress();
+    }
+  });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,198 @@
+[
+  {
+    "model": "airspace.approvaltype",
+    "pk": 1,
+    "fields": {
+      "code": "controlled-airspace",
+      "category": "airspace",
+      "regulation": "\u00a7107.41",
+      "name": "Controlled Airspace Authorization",
+      "description": "",
+      "active": true,
+      "requires_atc_coordination": true,
+      "display_order": 10
+    }
+  },
+  {
+    "model": "airspace.approvaltype",
+    "pk": 2,
+    "fields": {
+      "code": "107-25-moving-vehicle",
+      "category": "operational_waiver",
+      "regulation": "\u00a7107.25",
+      "name": "Operation from a Moving Vehicle or Aircraft",
+      "description": "",
+      "active": true,
+      "requires_atc_coordination": false,
+      "display_order": 20
+    }
+  },
+  {
+    "model": "airspace.approvaltype",
+    "pk": 3,
+    "fields": {
+      "code": "107-29-lighting",
+      "category": "operational_waiver",
+      "regulation": "\u00a7107.29",
+      "name": "Night Anti-Collision Lighting Relief",
+      "description": "",
+      "active": true,
+      "requires_atc_coordination": false,
+      "display_order": 30
+    }
+  },
+  {
+    "model": "airspace.approvaltype",
+    "pk": 4,
+    "fields": {
+      "code": "107-31-bvlos",
+      "category": "operational_waiver",
+      "regulation": "\u00a7107.31",
+      "name": "Beyond Visual Line of Sight",
+      "description": "",
+      "active": true,
+      "requires_atc_coordination": false,
+      "display_order": 40
+    }
+  },
+  {
+    "model": "airspace.approvaltype",
+    "pk": 5,
+    "fields": {
+      "code": "107-33-visual-observer",
+      "category": "operational_waiver",
+      "regulation": "\u00a7107.33",
+      "name": "Visual Observer Requirements",
+      "description": "",
+      "active": true,
+      "requires_atc_coordination": false,
+      "display_order": 50
+    }
+  },
+  {
+    "model": "airspace.approvaltype",
+    "pk": 6,
+    "fields": {
+      "code": "107-35-multiple-uas",
+      "category": "operational_waiver",
+      "regulation": "\u00a7107.35",
+      "name": "Multiple UAS Operations",
+      "description": "",
+      "active": true,
+      "requires_atc_coordination": false,
+      "display_order": 60
+    }
+  },
+  {
+    "model": "airspace.approvaltype",
+    "pk": 7,
+    "fields": {
+      "code": "107-37-right-of-way",
+      "category": "operational_waiver",
+      "regulation": "\u00a7107.37(a)",
+      "name": "Yielding Right of Way",
+      "description": "",
+      "active": true,
+      "requires_atc_coordination": false,
+      "display_order": 70
+    }
+  },
+  {
+    "model": "airspace.approvaltype",
+    "pk": 8,
+    "fields": {
+      "code": "107-39-people",
+      "category": "operational_waiver",
+      "regulation": "\u00a7107.39",
+      "name": "Operations Over People",
+      "description": "",
+      "active": true,
+      "requires_atc_coordination": false,
+      "display_order": 80
+    }
+  },
+  {
+    "model": "airspace.approvaltype",
+    "pk": 9,
+    "fields": {
+      "code": "107-51-groundspeed",
+      "category": "operational_waiver",
+      "regulation": "\u00a7107.51(a)",
+      "name": "Maximum Groundspeed",
+      "description": "",
+      "active": true,
+      "requires_atc_coordination": false,
+      "display_order": 90
+    }
+  },
+  {
+    "model": "airspace.approvaltype",
+    "pk": 10,
+    "fields": {
+      "code": "107-51-altitude",
+      "category": "operational_waiver",
+      "regulation": "\u00a7107.51(b)",
+      "name": "Maximum Altitude",
+      "description": "",
+      "active": true,
+      "requires_atc_coordination": false,
+      "display_order": 100
+    }
+  },
+  {
+    "model": "airspace.approvaltype",
+    "pk": 11,
+    "fields": {
+      "code": "107-51-visibility",
+      "category": "operational_waiver",
+      "regulation": "\u00a7107.51(c)",
+      "name": "Minimum Flight Visibility",
+      "description": "",
+      "active": true,
+      "requires_atc_coordination": false,
+      "display_order": 110
+    }
+  },
+  {
+    "model": "airspace.approvaltype",
+    "pk": 12,
+    "fields": {
+      "code": "107-51-cloud-clearance",
+      "category": "operational_waiver",
+      "regulation": "\u00a7107.51(d)",
+      "name": "Cloud Clearance",
+      "description": "",
+      "active": true,
+      "requires_atc_coordination": false,
+      "display_order": 120
+    }
+  },
+  {
+    "model": "airspace.approvaltype",
+    "pk": 13,
+    "fields": {
+      "code": "107-145-moving-vehicles",
+      "category": "operational_waiver",
+      "regulation": "\u00a7107.145",
+      "name": "Operations Over Moving Vehicles",
+      "description": "",
+      "active": true,
+      "requires_atc_coordination": false,
+      "display_order": 130
+    }
+  },
+  {
+    "model": "airspace.approvaltype",
+    "pk": 14,
+    "fields": {
+      "code": "sporting-event-tfr",
+      "category": "tfr",
+      "regulation": "",
+      "name": "Sporting Event TFR Waiver",
+      "description": "",
+      "active": true,
+      "requires_atc_coordination": false,
+      "display_order": 140
+    }
+  }
+]

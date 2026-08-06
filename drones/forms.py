@@ -40,6 +40,22 @@ class DroneForm(forms.ModelForm):
         }
 
     def __init__(self, *args, **kwargs):
+        # Capture the persisted values before ModelForm begins binding and
+        # validating. During validation Django updates self.instance from the
+        # submitted data, so reading self.instance inside clean() is too late
+        # for reliable change detection.
+        source_instance = kwargs.get("instance")
+        self._original_profile_id = (
+            source_instance.safety_profile_id
+            if source_instance is not None and source_instance.pk
+            else None
+        )
+        self._original_safety_features = (
+            (source_instance.safety_features or "").strip()
+            if source_instance is not None and source_instance.pk
+            else ""
+        )
+
         super().__init__(*args, **kwargs)
         self.fields["safety_profile"].queryset = (
             DroneSafetyProfile.objects
@@ -65,28 +81,65 @@ class DroneForm(forms.ModelForm):
         model_name = (cleaned.get("model") or "").strip()
 
         if selected_profile:
-            previous_profile_id = self.instance.safety_profile_id if self.instance.pk else None
-            profile_changed = previous_profile_id != selected_profile.pk
+            profile_changed = (
+                self._original_profile_id != selected_profile.pk
+            )
 
             cleaned["manufacturer"] = selected_profile.brand
             cleaned["model"] = selected_profile.model_name
             self.matched_safety_profile = selected_profile
 
-            safety_features = (cleaned.get("safety_features") or "").strip()
-            if not safety_features or profile_changed:
-                cleaned["safety_features"] = selected_profile.safety_features
+            submitted_features = (
+                cleaned.get("safety_features") or ""
+            ).strip()
+
+            # Refresh from the selected catalog profile when:
+            # 1. the field is blank; or
+            # 2. an existing drone changes profiles and the textarea was
+            #    submitted unchanged from the value originally displayed.
+            #
+            # If the user changes the textarea during this submission, their
+            # custom wording is preserved.
+            safety_text_was_edited = (
+                submitted_features != self._original_safety_features
+            )
+
+            if (
+                not submitted_features
+                or (
+                    self.instance.pk
+                    and profile_changed
+                    and not safety_text_was_edited
+                )
+            ):
+                cleaned["safety_features"] = (
+                    selected_profile.safety_features
+                )
         else:
             if not manufacturer:
-                self.add_error("manufacturer", "Enter a manufacturer or select a drone model.")
+                self.add_error(
+                    "manufacturer",
+                    "Enter a manufacturer or select a drone model.",
+                )
             if not model_name:
-                self.add_error("model", "Enter a model or select a drone model.")
+                self.add_error(
+                    "model",
+                    "Enter a model or select a drone model.",
+                )
 
             if manufacturer and model_name:
-                self.matched_safety_profile = find_best_drone_profile(manufacturer, model_name)
+                self.matched_safety_profile = find_best_drone_profile(
+                    manufacturer,
+                    model_name,
+                )
                 if self.matched_safety_profile:
                     cleaned["safety_profile"] = self.matched_safety_profile
-                    if not (cleaned.get("safety_features") or "").strip():
-                        cleaned["safety_features"] = self.matched_safety_profile.safety_features
+                    if not (
+                        cleaned.get("safety_features") or ""
+                    ).strip():
+                        cleaned["safety_features"] = (
+                            self.matched_safety_profile.safety_features
+                        )
 
         return cleaned
 
