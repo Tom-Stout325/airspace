@@ -535,7 +535,7 @@
   </form>
 </div>
 
-{{ pilot_profile_data|json_script:"pilot-profile-data" }}
+{{ form.pilot_profile_data|json_script:"pilot-profile-data" }}
 
 <script>
 (() => {
@@ -546,13 +546,18 @@
   const pilotCertificate = document.getElementById("id_pilot_cert_manual");
   if (pilotDataElement && pilotSelect && pilotCertificate) {
     const pilotProfiles = JSON.parse(pilotDataElement.textContent);
-    const populatePilotCertificate = () => {
+    const populatePilotCertificate = (clearWhenEmpty = false) => {
       const selected = pilotProfiles[pilotSelect.value];
-      if (selected && selected.faa_certificate_number) {
-        pilotCertificate.value = selected.faa_certificate_number;
+      if (selected) {
+        pilotCertificate.value = selected.faa_certificate_number || "";
+      } else if (clearWhenEmpty) {
+        pilotCertificate.value = "";
       }
     };
-    pilotSelect.addEventListener("change", populatePilotCertificate);
+    pilotSelect.addEventListener(
+      "change",
+      () => populatePilotCertificate(true)
+    );
     populatePilotCertificate();
   }
 

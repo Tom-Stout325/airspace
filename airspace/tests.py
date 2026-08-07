@@ -5,6 +5,8 @@ from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.urls import reverse
 from drones.models import Drone
+from pilot.models import PilotProfile
+from .forms import OperationsPlanningForm
 from .models import (
     Airport,
     ApprovalType,
@@ -20,8 +22,121 @@ class OperationsPlanningTests(TestCase):
     def setUp(self):
         self.owner = User.objects.create_user(email="owner@example.com", first_name="Owner", last_name="Pilot", password="pass-12345")
         self.other = User.objects.create_user(email="other@example.com", first_name="Other", last_name="Pilot", password="pass-12345")
+        self.owner_profile = PilotProfile.objects.create(
+            user=self.owner,
+            faa_certificate_number="OWNER-FAA-123",
+        )
+        self.other_profile = PilotProfile.objects.create(
+            user=self.other,
+            faa_certificate_number="OTHER-FAA-456",
+        )
         self.operation = OperationsPlanning.objects.create(user=self.owner, operation_title="Test operation", start_date=date.today())
         self.drone = Drone.objects.create(user=self.owner, manufacturer="DJI", model="Air 3S", serial_number="SERIAL-1", safety_features="RTH")
+
+    def operation_form_data(self, **overrides):
+        data = {
+            "status": OperationsPlanning.Status.DRAFT,
+            "operation_title": "Certificate test operation",
+            "start_date": date.today().isoformat(),
+            "operation_area_type": "radius",
+        }
+        data.update(overrides)
+        return data
+
+    def test_selected_pilot_certificate_is_saved_on_create(self):
+        self.client.force_login(self.owner)
+
+        response = self.client.post(
+            reverse("airspace:operations_planning_create"),
+            self.operation_form_data(
+                pilot_profile=str(self.owner_profile.pk),
+                pilot_cert_manual="untrusted-submitted-value",
+            ),
+        )
+
+        created = OperationsPlanning.objects.get(
+            operation_title="Certificate test operation",
+        )
+        self.assertRedirects(
+            response,
+            reverse(
+                "airspace:operations_planning_detail",
+                kwargs={"pk": created.pk},
+            ),
+        )
+        self.assertEqual(created.pilot_profile, self.owner_profile)
+        self.assertEqual(created.pilot_cert_manual, "OWNER-FAA-123")
+
+    def test_edit_form_renders_selected_pilot_current_certificate(self):
+        self.operation.pilot_profile = self.owner_profile
+        self.operation.pilot_cert_manual = "STALE-CERTIFICATE"
+        self.operation.save()
+        self.client.force_login(self.owner)
+
+        response = self.client.get(
+            reverse(
+                "airspace:operations_planning_edit",
+                kwargs={"pk": self.operation.pk},
+            )
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.context["form"]["pilot_cert_manual"].value(),
+            "OWNER-FAA-123",
+        )
+        self.assertContains(response, "OWNER-FAA-123")
+        self.assertNotContains(response, "OTHER-FAA-456")
+
+        response = self.client.post(
+            reverse(
+                "airspace:operations_planning_edit",
+                kwargs={"pk": self.operation.pk},
+            ),
+            self.operation_form_data(
+                operation_title=self.operation.operation_title,
+                pilot_profile=str(self.owner_profile.pk),
+                pilot_cert_manual="STALE-CERTIFICATE",
+            ),
+        )
+
+        self.assertRedirects(
+            response,
+            reverse(
+                "airspace:operations_planning_detail",
+                kwargs={"pk": self.operation.pk},
+            ),
+        )
+        self.operation.refresh_from_db()
+        self.assertEqual(
+            self.operation.pilot_cert_manual,
+            "OWNER-FAA-123",
+        )
+
+    def test_other_users_pilot_profile_cannot_be_selected(self):
+        form = OperationsPlanningForm(
+            data=self.operation_form_data(
+                pilot_profile=str(self.other_profile.pk),
+            ),
+            user=self.owner,
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("pilot_profile", form.errors)
+
+    def test_no_selected_pilot_keeps_blank_certificate(self):
+        form = OperationsPlanningForm(
+            data=self.operation_form_data(
+                pilot_profile="",
+                pilot_cert_manual="",
+            ),
+            user=self.owner,
+        )
+
+        self.assertTrue(form.is_valid(), form.errors)
+        operation = form.save()
+        self.assertIsNone(operation.pilot_profile)
+        self.assertEqual(operation.pilot_cert_manual, "")
 
     def test_other_user_cannot_open_operation(self):
         self.client.force_login(self.other)
@@ -189,4 +304,3 @@ class ApprovalWorkflowTests(TestCase):
         self.assertFalse(by_key["aircraft"]["complete"])
         self.assertFalse(by_key["approvals"]["complete"])
         self.assertLess(self.operation.completion_percentage, 100)
-

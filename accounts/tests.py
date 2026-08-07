@@ -13,6 +13,27 @@ from .models import EmailDeliveryLog, Invitation
 User = get_user_model()
 
 
+class RootRedirectTests(TestCase):
+    def test_authenticated_user_is_redirected_to_pilot_dashboard(self):
+        user = User.objects.create_user(
+            email="root-pilot@example.com",
+            password="test-pass-123",
+        )
+        self.client.force_login(user)
+
+        response = self.client.get("/")
+
+        self.assertRedirects(response, reverse("pilot:dashboard"))
+
+    def test_anonymous_user_is_redirected_to_login_with_next(self):
+        response = self.client.get("/")
+
+        self.assertRedirects(
+            response,
+            f"{reverse('accounts:login')}?next=/",
+        )
+
+
 @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
 class InvitationFlowTests(TestCase):
     def setUp(self):

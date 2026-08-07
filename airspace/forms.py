@@ -292,11 +292,28 @@ class OperationsPlanningForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.user = user
 
-        self.fields["pilot_profile"].queryset = (
+        pilot_profiles = (
             PilotProfile.objects.filter(user=user)
             if user
             else PilotProfile.objects.none()
         )
+        self.fields["pilot_profile"].queryset = pilot_profiles
+        self.pilot_profile_data = {
+            str(profile.pk): {
+                "faa_certificate_number": profile.faa_certificate_number or "",
+            }
+            for profile in pilot_profiles
+        }
+
+        if not self.is_bound and self.instance.pilot_profile_id:
+            selected_pilot = pilot_profiles.filter(
+                pk=self.instance.pilot_profile_id,
+            ).first()
+            if selected_pilot is not None:
+                self.initial["pilot_cert_manual"] = (
+                    selected_pilot.faa_certificate_number or ""
+                ).strip()
+
         self.fields["nearest_airport_ref"].queryset = (
             self.fields["nearest_airport_ref"]
             .queryset.filter(active=True)
@@ -335,7 +352,7 @@ class OperationsPlanningForm(forms.ModelForm):
     def clean(self):
         cleaned = super().clean()
         pilot_profile = cleaned.get("pilot_profile")
-        if pilot_profile and not (cleaned.get("pilot_cert_manual") or "").strip():
+        if pilot_profile:
             cleaned["pilot_cert_manual"] = (
                 pilot_profile.faa_certificate_number or ""
             ).strip()
