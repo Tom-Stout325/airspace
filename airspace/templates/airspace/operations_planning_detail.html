@@ -123,13 +123,13 @@
         target="_blank"
         rel="noopener"
       >
-        View / Print PDF
+        View Planning PDF
       </a>
       <a
         class="btn btn-outline-primary"
         href="{% url 'airspace:operation_planning_pdf' operation.pk %}?download=1"
       >
-        Download PDF
+        Download Planning PDF
       </a>
       <a
         class="btn btn-warning"
@@ -284,6 +284,20 @@
                     href="{% url 'airspace:operation_conops_review' operation.pk item.pk %}"
                   >
                     Build / Review CONOPS
+                  </a>
+                  <a
+                    class="btn btn-sm btn-outline-dark"
+                    href="{% url 'airspace:operation_faa_package_pdf' operation.pk item.pk %}"
+                    target="_blank"
+                    rel="noopener"
+                  >
+                    View FAA Package
+                  </a>
+                  <a
+                    class="btn btn-sm btn-outline-dark"
+                    href="{% url 'airspace:operation_faa_package_pdf' operation.pk item.pk %}?download=1"
+                  >
+                    Download FAA Package
                   </a>
                   <a
                     class="btn btn-sm btn-outline-danger"
@@ -476,6 +490,13 @@
                       <a
                         class="btn btn-sm btn-warning"
                         href="{% url 'airspace:operations_planning_edit' operation.pk %}#location-airspace"
+                      >
+                        Complete section
+                      </a>
+                    {% elif section.key == "map" %}
+                      <a
+                        class="btn btn-sm btn-warning"
+                        href="{% url 'airspace:operations_planning_edit' operation.pk %}#operating-area-map"
                       >
                         Complete section
                       </a>

@@ -123,6 +123,7 @@ class OperationsPlanningForm(forms.ModelForm):
             "end_date": "Proposed End Date",
             "frequency": "Operation Frequency",
             "local_time_zone": "Local Time Zone",
+            "dronezone_radius": "DroneZone Requested Radius",
             "purpose_operations_details": "Mission Details",
             "aircraft_use": "Aircraft Deployment",
             "pilot_profile": "Remote Pilot in Command (RPIC)",
@@ -145,6 +146,8 @@ class OperationsPlanningForm(forms.ModelForm):
             "nearest_airport_ref": "Nearest Airport",
             "operation_area_type": "Operational Area Geometry",
             "operation_area_description": "Operational Area Description",
+            "operation_map": "Operating Area Map",
+            "operation_map_notes": "Map Notes",
             "containment_method": "Primary Containment Method",
             "containment_notes": "Containment Procedures",
             "maximum_planned_altitude_agl": "Maximum Planned Altitude (AGL)",
@@ -191,7 +194,16 @@ class OperationsPlanningForm(forms.ModelForm):
             "start_date": "Enter the first proposed day of flight operations.",
             "end_date": "Leave blank for a one-day operation. Otherwise enter the final proposed operating date.",
             "frequency": "Describe how often flights are expected during the selected date range.",
-            "local_time_zone": "Use an IANA time zone such as America/New_York.",
+            "local_time_zone": (
+                "Select the same standard-time-zone option that will be "
+                "entered in FAA DroneZone. AirSpace preserves the FAA label "
+                "rather than converting it to daylight-saving terminology."
+            ),
+            "dronezone_radius": (
+                "Select the radius that will be entered in the FAA DroneZone "
+                "airspace-authorization application. This does not replace "
+                "the detailed operating-area map or containment description."
+            ),
             "purpose_operations_details": "Add details not clear from the selected mission type, including deliverables, client needs, or event coverage.",
             "aircraft_use": "Indicate whether one aircraft, multiple aircraft used in sequence, or multiple aircraft used simultaneously are planned.",
             "pilot_profile": "Select the saved pilot profile for the person who will serve as Remote Pilot in Command.",
@@ -209,6 +221,12 @@ class OperationsPlanningForm(forms.ModelForm):
             "nearest_airport": "Use only when the airport is not available in the dropdown.",
             "operation_area_type": "Choose the shape that best describes the planned operating area. The exact boundary will later be defined on a map.",
             "operation_area_description": "Describe the lateral boundaries using roads, buildings, property lines, venue features, or other recognizable references.",
+            "operation_map": (
+                "Upload the annotated map that will support the FAA planning package. Use the exact operating location rather than relying only on a facility mailing address."
+            ),
+            "operation_map_notes": (
+                "Optional: identify what the colors, lines, labels, or shaded areas on the uploaded map represent."
+            ),
             "containment_method": "Select the primary method used to keep the aircraft inside the defined operational area.",
             "containment_notes": "Explain how the boundary will be established, monitored, and enforced during the operation.",
             "maximum_planned_altitude_agl": "Enter the highest altitude planned above the surface directly beneath the aircraft.",

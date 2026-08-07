@@ -4,145 +4,178 @@
 
 {% block content %}
 <style>
-  .conops-shell {
-    max-width: 1100px;
-  }
-
+  .conops-shell { max-width: 1100px; }
   .conops-hero,
   .conops-section-header {
     background: SteelBlue;
     color: #fff;
   }
-
   .conops-hero h1,
-  .conops-section-header h2 {
-    color: #fff;
-  }
-
-  .conops-hero p {
-    color: rgba(255, 255, 255, 0.88);
-  }
-
+  .conops-section-header h2 { color: #fff; }
   .conops-section {
     border: 1px solid var(--bs-border-color);
-    border-radius: 0.75rem;
+    border-radius: .75rem;
     overflow: hidden;
-    scroll-margin-top: 6rem;
   }
-
-  .conops-section + .conops-section {
-    margin-top: 1.25rem;
-  }
-
-  .conops-section-header {
-    padding: 0.9rem 1rem;
-  }
-
-  .conops-section-header h2 {
-    margin: 0;
-    font-size: 1.05rem;
-  }
-
-  .conops-section-body {
-    padding: 1rem;
-  }
-
-  .conops-textarea {
-    min-height: 14rem;
-    font-family: inherit;
-    line-height: 1.5;
-  }
-
+  .conops-section + .conops-section { margin-top: 1.25rem; }
+  .conops-section-header { padding: .9rem 1rem; }
+  .conops-section-header h2 { margin: 0; font-size: 1.05rem; }
+  .conops-section-body { padding: 1rem; }
+  .conops-textarea { min-height: 10rem; line-height: 1.5; }
+  .description-textarea { min-height: 11rem; line-height: 1.5; }
   .conops-actions {
     position: sticky;
     bottom: 0;
     z-index: 20;
     margin-top: 1.5rem;
-    padding: 0.9rem;
+    padding: .9rem;
     border: 1px solid var(--bs-border-color);
-    border-radius: 0.75rem;
-    background: color-mix(
-      in srgb,
-      var(--bs-body-bg) 95%,
-      transparent
-    );
-    backdrop-filter: blur(8px);
-    box-shadow: 0 -0.2rem 1rem rgba(0, 0, 0, 0.08);
+    border-radius: .75rem;
+    background: var(--bs-body-bg);
+    box-shadow: 0 -.2rem 1rem rgba(0,0,0,.08);
   }
 </style>
 
 <div class="container conops-shell py-4">
   <div class="card shadow-sm mb-4 overflow-hidden">
-    <div class="conops-hero p-4">
-      <div class="d-flex flex-column flex-lg-row justify-content-between gap-3">
-        <div>
-          <div class="small text-uppercase fw-semibold mb-1">
-            Concept of Operations
-          </div>
-          <h1 class="h3 mb-1">{{ operation.operation_title }}</h1>
-          <p class="mb-0">
-            {{ approval.approval_type }}
-            {% if approval.regulation_display %}
-              · {{ approval.regulation_display }}
-            {% endif %}
-          </p>
+    <div class="conops-hero p-4 d-flex flex-column flex-lg-row justify-content-between gap-3">
+      <div>
+        <div class="small text-uppercase fw-semibold mb-1">
+          AI-Assisted CONOPS
         </div>
-
-        <div class="text-lg-end">
-          <div class="h4 mb-0">{{ review_percentage }}%</div>
-          <div class="small">
-            {{ complete_count }} of {{ total_count }} sections reviewed
-          </div>
+        <h1 class="h3 mb-1">{{ operation.operation_title }}</h1>
+        <p class="mb-0">
+          {{ approval.approval_type }}
+          {% if approval.regulation_display %}
+            · {{ approval.regulation_display }}
+          {% endif %}
+        </p>
+      </div>
+      <div class="text-lg-end">
+        <div class="h4 mb-0">{{ review_percentage }}%</div>
+        <div class="small">
+          {{ complete_count }} of {{ total_count }} sections reviewed
         </div>
       </div>
     </div>
 
     <div class="card-body">
-      <div class="progress mb-3" style="height: 0.7rem;">
-        <div
-          class="progress-bar"
-          style="width: {{ review_percentage }}%; background: SteelBlue;"
-          role="progressbar"
-          aria-valuenow="{{ review_percentage }}"
-          aria-valuemin="0"
-          aria-valuemax="100"
-        ></div>
-      </div>
-
-      <p class="mb-0 text-muted">
-        AirSpace generated this draft from the operation plan and the selected
-        FAA waiver or approval. Edit each section as needed. Any text you
-        change is automatically protected from regeneration.
+      <p class="mb-2">
+        ChatGPT creates a short Description of Operations and a separate,
+        concise document-style controlled-airspace CONOPS from the saved
+        planning record. The CONOPS is written as connected operational
+        narrative, with bullets used only where they improve readability.
+        Both outputs remain drafts until reviewed by the RPIC.
       </p>
+
+      {% if not openai_configured %}
+        <div class="alert alert-warning mb-0">
+          OpenAI generation is unavailable until
+          <code>OPENAI_API_KEY</code> is configured.
+        </div>
+      {% endif %}
+
+      {% if conops_is_stale %}
+        <div class="alert alert-warning mt-3 mb-0">
+          <strong>
+            Planning changed after this CONOPS was generated.
+          </strong>
+          The previous Description of Operations and CONOPS are retained for
+          reference, but they are no longer considered current. Generate with
+          ChatGPT again, then review every refreshed section before FAA
+          submission.
+        </div>
+      {% endif %}
+
+      {% if application.ai_generation_error %}
+        <div class="alert alert-danger mt-3 mb-0">
+          <strong>Last generation error:</strong>
+          {{ application.ai_generation_error }}
+        </div>
+      {% endif %}
+
+      {% if application.ai_generated_at %}
+        <div class="small text-muted mt-3">
+          Last generated {{ application.ai_generated_at|date:"M j, Y g:i A" }}
+          using {{ application.ai_generation_model }}.
+          {% if application.ai_input_tokens %}
+            Input: {{ application.ai_input_tokens }} tokens.
+          {% endif %}
+          {% if application.ai_output_tokens %}
+            Output: {{ application.ai_output_tokens }} tokens.
+          {% endif %}
+        </div>
+      {% endif %}
     </div>
   </div>
 
   <form method="post" novalidate>
     {% csrf_token %}
 
+    <section class="conops-section mb-4" id="description-of-operations">
+      <div class="conops-section-header">
+        <h2>Description of Operations</h2>
+      </div>
+      <div class="conops-section-body">
+        <p class="text-muted">
+          Short version intended for the FAA application's Description of
+          Operations field.
+        </p>
+
+        <textarea
+          class="form-control description-textarea"
+          id="description"
+          name="description"
+        >{{ application.description }}</textarea>
+
+        <div class="d-flex flex-column flex-md-row justify-content-between gap-2 mt-2">
+          <div class="form-check">
+            <input
+              class="form-check-input"
+              id="locked_description"
+              name="locked_description"
+              type="checkbox"
+              {% if application.locked_description %}checked{% endif %}
+            >
+            <label
+              class="form-check-label fw-semibold"
+              for="locked_description"
+            >
+              Protect description from regeneration
+            </label>
+          </div>
+          <div class="small text-muted">
+            <span id="description-count">0</span> characters
+            {% if application.description_generated_at %}
+              · Generated
+              {{ application.description_generated_at|date:"M j, Y g:i A" }}
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </section>
+
+    {% if not sections %}
+      <div class="alert alert-info">
+        No full CONOPS has been generated yet. Choose
+        <strong>Generate with ChatGPT</strong> below.
+      </div>
+    {% endif %}
+
     {% for section in sections %}
       <section class="conops-section" id="{{ section.section_key }}">
-        <div class="conops-section-header">
-          <div class="d-flex flex-column flex-sm-row justify-content-between gap-2">
-            <h2>{{ section.title }}</h2>
-            <div class="small">
-              {% if section.locked %}
-                Protected from regeneration
-              {% else %}
-                Generated section
-              {% endif %}
-            </div>
+        <div class="conops-section-header d-flex flex-column flex-sm-row justify-content-between gap-2">
+          <h2>{{ section.title }}</h2>
+          <div class="small">
+            {% if section.locked %}
+              Protected from regeneration
+            {% else %}
+              AI-generated section
+            {% endif %}
           </div>
         </div>
 
         <div class="conops-section-body">
-          <label
-            class="visually-hidden"
-            for="content_{{ section.pk }}"
-          >
-            {{ section.title }}
-          </label>
-
           <textarea
             class="form-control conops-textarea"
             id="content_{{ section.pk }}"
@@ -165,9 +198,6 @@
                 >
                   Protect this section from regeneration
                 </label>
-              </div>
-              <div class="form-text">
-                Edited text is protected automatically when saved.
               </div>
             </div>
 
@@ -200,7 +230,7 @@
       </section>
     {% endfor %}
 
-    <div class="conops-actions d-flex flex-column flex-md-row justify-content-between gap-2">
+    <div class="conops-actions d-flex flex-column flex-lg-row justify-content-between gap-2">
       <a
         class="btn btn-outline-secondary"
         href="{% url 'airspace:operations_planning_detail' operation.pk %}#required-faa-approvals"
@@ -208,15 +238,51 @@
         Back to operation
       </a>
 
-      <div class="d-flex flex-column flex-sm-row gap-2">
+      <div class="d-flex flex-wrap gap-2">
+        {% if application.description or sections %}
+          <a
+            class="btn btn-outline-secondary"
+            target="_blank"
+            rel="noopener"
+            href="{% url 'airspace:operation_conops_pdf' operation.pk approval.pk %}"
+          >
+            View / Print PDF
+          </a>
+          <a
+            class="btn btn-outline-secondary"
+            href="{% url 'airspace:operation_conops_pdf' operation.pk approval.pk %}?download=1"
+          >
+            Download PDF
+          </a>
+          <a
+            class="btn btn-outline-dark"
+            target="_blank"
+            rel="noopener"
+            href="{% url 'airspace:operation_faa_package_pdf' operation.pk approval.pk %}"
+          >
+            View FAA Package
+          </a>
+          <a
+            class="btn btn-outline-dark"
+            href="{% url 'airspace:operation_faa_package_pdf' operation.pk approval.pk %}?download=1"
+          >
+            Download FAA Package
+          </a>
+        {% endif %}
+
         <button
           class="btn btn-outline-primary"
           type="submit"
           name="action"
-          value="regenerate"
-          onclick="return confirm('Regenerate all unlocked sections from the current operation plan? Protected sections will not be changed.');"
+          value="generate_ai"
+          {% if not openai_configured %}disabled{% endif %}
+          onclick="return confirm('Generate or refresh all unprotected content with ChatGPT? Reviewed protected content will not be changed.');"
         >
-          Regenerate Unlocked Sections
+          {% if conops_is_stale %}
+            Regenerate with ChatGPT
+          {% else %}
+            Generate with ChatGPT
+          {% endif %}
         </button>
 
         <button
@@ -225,10 +291,24 @@
           name="action"
           value="save"
         >
-          Save CONOPS Review
+          Save Review
         </button>
       </div>
     </div>
   </form>
 </div>
+
+<script>
+(() => {
+  const field = document.getElementById("description");
+  const count = document.getElementById("description-count");
+  const update = () => {
+    if (field && count) {
+      count.textContent = field.value.length;
+    }
+  };
+  field?.addEventListener("input", update);
+  update();
+})();
+</script>
 {% endblock %}

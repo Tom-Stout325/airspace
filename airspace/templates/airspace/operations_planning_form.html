@@ -338,6 +338,46 @@
       </div>
     </section>
 
+    <section class="operation-section" id="operating-area-map">
+      <div class="operation-section-header">
+        <h2>Operating area map</h2>
+        <p>Upload a map showing the actual geographic area where the aircraft will operate.</p>
+      </div>
+      <div class="operation-section-body">
+        <div class="alert alert-info" role="note">
+          <h3 class="h6 fw-bold mb-2">How to prepare the map</h3>
+          <p><strong>Do not assume a facility's mailing address is the correct GPS location for the operation.</strong> Large sites such as stadiums, race tracks, shopping centers, campuses, construction sites, farms, and industrial facilities may cover a large geographic area. The address pin may be at an entrance, office, or other point far from the actual flight area.</p>
+          <ol class="ps-3">
+            <li>Open Google Maps, Google Earth, or another current satellite mapping service.</li>
+            <li>Zoom to the exact part of the property where flight operations will occur.</li>
+            <li>In Google Maps, click or right-click the actual operating area to obtain its latitude and longitude. Use those coordinates for the Operation Latitude / Longitude fields.</li>
+            <li>Separately identify the exact launch / recovery point when it is different from the center of operations.</li>
+            <li>Save or capture a map and annotate it before uploading.</li>
+          </ol>
+          <h3 class="h6 fw-bold mt-3 mb-2">The uploaded map should identify</h3>
+          <ul class="ps-3 mb-0">
+            <li>Planned UAS operating area or boundary.</li>
+            <li>Launch and normal recovery location.</li>
+            <li>Any no-flight or excluded areas.</li>
+            <li>Emergency landing area(s), when applicable.</li>
+            <li>Major roads, buildings, property boundaries, or other visual references useful to the RPIC and FAA reviewer.</li>
+          </ul>
+          <p class="small text-muted mt-3 mb-0">Example: at a large facility or shopping center, the facility address may place the map pin hundreds or thousands of feet from the intended flight area. Select the actual operating area on the map and use that GPS coordinate instead.</p>
+        </div>
+        {% if operation and operation.operation_map %}
+          <div class="alert alert-light mt-3">
+            <strong>Current uploaded map:</strong>
+            <a href="{{ operation.operation_map.url }}" target="_blank" rel="noopener">View current map</a>
+          </div>
+        {% endif %}
+        <div class="row g-3 mt-1">
+          {% include "airspace/partials/_field.html" with field=form.operation_map column_class="col-12" %}
+          {% include "airspace/partials/_field.html" with field=form.operation_map_notes column_class="col-12" %}
+        </div>
+        <div class="form-text mt-2">Accepted formats: PDF, PNG, JPG, JPEG, and WebP.</div>
+      </div>
+    </section>
+
     <section class="operation-section">
       <div class="operation-section-header">
         <h2>Operation area and containment</h2>
@@ -346,13 +386,14 @@
       <div class="operation-section-body">
         <div class="row g-3">
           {% include "airspace/partials/_field.html" with field=form.operation_area_type %}
+          {% include "airspace/partials/_field.html" with field=form.dronezone_radius %}
           {% include "airspace/partials/_field.html" with field=form.containment_method %}
           {% include "airspace/partials/_field.html" with field=form.operation_area_description column_class="col-12" %}
           {% include "airspace/partials/_field.html" with field=form.containment_notes column_class="col-12" %}
         </div>
 
         <div class="alert operation-reference-note mt-4 mb-0" role="note">
-          The exact boundary will be drawn on an attached map. Radius, corridor dimensions, and GeoJSON are not entered manually on this form.
+          The exact operating boundary will still be drawn on an attached map. The DroneZone Requested Radius above is the FAA application selection and does not replace the detailed map, containment description, or operational boundaries.
         </div>
 
       </div>

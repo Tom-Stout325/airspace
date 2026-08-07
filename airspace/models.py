@@ -1,4 +1,5 @@
 from __future__ import annotations
+import uuid
 
 from decimal import Decimal
 from math import atan2, cos, radians, sin, sqrt
@@ -6,6 +7,7 @@ from math import atan2, cos, radians, sin, sqrt
 from django.conf import settings
 from django.contrib.postgres.fields import ArrayField
 from django.core.exceptions import ValidationError
+from django.core.validators import FileExtensionValidator
 from django.db import models
 
 
@@ -45,6 +47,12 @@ class Airport(models.Model):
         return f"{identifier} — {self.name}{suffix}"
 
 
+def operation_map_upload_to(instance, filename):
+    suffix = Path(filename).suffix.lower()
+    user_id = instance.user_id or "unknown"
+    return f"operation_maps/user_{user_id}/{uuid.uuid4().hex}{suffix}"
+
+
 class OperationsPlanning(models.Model):
     class Status(models.TextChoices):
         DRAFT = "draft", "Draft"
@@ -65,6 +73,28 @@ class OperationsPlanning(models.Model):
         ("once", "One-time operation"), ("daily", "Daily"),
         ("weekly", "Weekly"), ("biweekly", "Bi-weekly"),
         ("monthly", "Monthly"), ("variable", "Variable / as needed"),
+    ]
+    LOCAL_TIME_ZONE_CHOICES = [
+        ("SST", "Samoa Standard Time (SST) [UTC-11]"),
+        ("HAST", "Hawaii-Aleutian Standard Time (HAST) [UTC-10]"),
+        ("AKST", "Alaska Standard Time (AKST) [UTC-9]"),
+        ("PST", "Pacific Standard Time (PST) [UTC-8]"),
+        ("MST", "Mountain Standard Time (MST) [UTC-7]"),
+        ("CST", "Central Standard Time (CST) [UTC-6]"),
+        ("EST", "Eastern Standard Time (EST) [UTC-5]"),
+        ("AST", "Atlantic Standard Time (AST) [UTC-4]"),
+        ("CHST", "Chamorro Standard Time (CHST) [UTC+10]"),
+    ]
+
+    DRONEZONE_RADIUS_CHOICES = [
+        ("0.1_nm", "1/10th NM"),
+        ("0.25_nm", "1/4th NM"),
+        ("0.5_nm", "1/2 NM"),
+        ("0.75_nm", "3/4th NM"),
+        ("1_nm", "1 NM"),
+        ("1_2_nm", "1-2 NM"),
+        ("2_3_nm", "2-3 NM"),
+        ("blanket_wide_area", "Blanket Area / Wide Area"),
     ]
     AIRSPACE_CLASS_CHOICES = [
         ("B", "Class B"), ("C", "Class C"), ("D", "Class D"),
@@ -144,7 +174,11 @@ class OperationsPlanning(models.Model):
     end_date = models.DateField(null=True, blank=True)
     timeframe = ArrayField(models.CharField(max_length=20, choices=TIMEFRAME_CHOICES), blank=True, default=list)
     frequency = models.CharField(max_length=20, choices=FREQUENCY_CHOICES, blank=True)
-    local_time_zone = models.CharField(max_length=64, blank=True)
+    local_time_zone = models.CharField(
+        max_length=10,
+        choices=LOCAL_TIME_ZONE_CHOICES,
+        blank=True,
+    )
     purpose_operations = ArrayField(models.CharField(max_length=50, choices=PURPOSE_OPERATIONS_CHOICES), blank=True, default=list)
     purpose_operations_details = models.TextField(blank=True)
 
@@ -174,7 +208,30 @@ class OperationsPlanning(models.Model):
     distance_to_airport_nm = models.DecimalField(max_digits=7, decimal_places=2, null=True, blank=True)
 
     operation_area_type = models.CharField(max_length=30, choices=OPERATION_AREA_CHOICES, default="radius")
+    dronezone_radius = models.CharField(
+        max_length=30,
+        choices=DRONEZONE_RADIUS_CHOICES,
+        blank=True,
+    )
     operation_area_description = models.TextField(blank=True)
+    operation_map = models.FileField(
+        upload_to=operation_map_upload_to,
+        blank=True,
+        validators=[
+            FileExtensionValidator(
+                allowed_extensions=["pdf", "png", "jpg", "jpeg", "webp"]
+            )
+        ],
+        help_text=(
+            "Upload an annotated operating-area map as PDF, PNG, JPG, JPEG, or WebP."
+        ),
+    )
+    operation_map_notes = models.TextField(
+        blank=True,
+        help_text=(
+            "Optional notes describing map markings, boundaries, launch and recovery points, emergency landing areas, or other geographic details."
+        ),
+    )
     operation_area_geojson = models.JSONField(null=True, blank=True)
     location_radius_ft = models.PositiveIntegerField(null=True, blank=True)
     corridor_length_ft = models.PositiveIntegerField(null=True, blank=True)
@@ -343,6 +400,13 @@ class OperationsPlanning(models.Model):
                     ("Landing location", self.recovery_location),
                     ("Airspace classification", self.airspace_class),
                     ("Nearest airport", self.nearest_airport_ref_id),
+                ],
+            },
+            {
+                "key": "map",
+                "title": "Operating Area Map",
+                "requirements": [
+                    ("Operating area map uploaded", self.operation_map),
                 ],
             },
             {
@@ -794,13 +858,21 @@ class OperationApproval(models.Model):
 
 class ApprovalApplication(models.Model):
     STATUS_CHOICES = [("draft", "Draft"), ("submitted", "Submitted")]
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="approval_applications")
-    approval = models.ForeignKey(OperationApproval, on_delete=models.CASCADE, related_name="applications")
-    description = models.TextField(blank=True)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="draft")
-    locked_description = models.BooleanField(default=False)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    user                       = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="approval_applications")
+    approval                   = models.ForeignKey(OperationApproval, on_delete=models.CASCADE, related_name="applications")
+    description                = models.TextField(blank=True, default="", help_text=( "Concise Description of Operations intended for the FAA " "application form."),)
+    status                     = models.CharField(max_length=20, choices=STATUS_CHOICES, default="draft",)
+    locked_description         = models.BooleanField(default=False, help_text=("Protect the reviewed Description of Operations from AI " "regeneration."),)
+    description_generated_at   = models.DateTimeField(null=True, blank=True,)
+    ai_generation_model        = models.CharField(max_length=100, blank=True, default="",)
+    ai_generated_at            = models.DateTimeField(null=True, blank=True,)
+    conops_source_updated_at   = models.DateTimeField(null=True, blank=True, help_text=("Latest planning-source timestamp represented by the currently " "generated AI CONOPS."),)
+    ai_prompt_version          = models.CharField(max_length=30, blank=True, default="",)
+    ai_generation_error        = models.TextField(blank=True,default="",)
+    ai_input_tokens            = models.PositiveIntegerField(null=True,blank=True,)
+    ai_output_tokens           = models.PositiveIntegerField(null=True, blank=True,)
+    created_at                 = models.DateTimeField(auto_now_add=True)
+    updated_at                 = models.DateTimeField(auto_now=True)
 
     def clean(self):
         super().clean()
@@ -823,16 +895,16 @@ class ApprovalApplication(models.Model):
 
 
 class ConopsSection(models.Model):
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="conops_sections")
-    application = models.ForeignKey(ApprovalApplication, on_delete=models.CASCADE, related_name="conops_sections")
-    section_key = models.SlugField(max_length=50, db_index=True)
-    title = models.CharField(max_length=255)
-    content = models.TextField(blank=True)
-    locked = models.BooleanField(default=False)
-    is_complete = models.BooleanField(default=False)
-    validated_at = models.DateTimeField(null=True, blank=True)
-    generated_at = models.DateTimeField(null=True, blank=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    user            = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="conops_sections")
+    application     = models.ForeignKey(ApprovalApplication, on_delete=models.CASCADE, related_name="conops_sections")
+    section_key     = models.SlugField(max_length=50, db_index=True)
+    title           = models.CharField(max_length=255)
+    content         = models.TextField(blank=True)
+    locked          = models.BooleanField(default=False)
+    is_complete     = models.BooleanField(default=False)
+    validated_at    = models.DateTimeField(null=True, blank=True)
+    generated_at    = models.DateTimeField(null=True, blank=True)
+    updated_at      = models.DateTimeField(auto_now=True)
 
     def clean(self):
         super().clean()

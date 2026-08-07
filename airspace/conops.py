@@ -459,73 +459,235 @@ def _conclusion(approval) -> str:
     )
 
 
+# AIRSPACE_CONOPS_DOCUMENT_STYLE_V2
+def _controlled_area_airspace(approval) -> str:
+    return (
+        f"{_dates_location_airspace(approval)}\n\n"
+        f"{_area_and_containment(approval)}"
+    )
+
+
+def _airspace_atc_coordination(approval) -> str:
+    operation = approval.operation
+    details = []
+
+    if _clean(operation.atc_facility_name):
+        details.append(
+            f"The controlling or coordinating ATC facility identified in "
+            f"the planning record is {operation.atc_facility_name}."
+        )
+
+    if _clean(operation.atc_coordination_method):
+        details.append(
+            "Planned ATC coordination method: "
+            f"{operation.get_atc_coordination_method_display()}."
+        )
+
+    if _clean(operation.atc_phone):
+        details.append(
+            f"ATC contact telephone: {operation.atc_phone}."
+        )
+
+    if _clean(operation.atc_frequency):
+        details.append(
+            f"ATC frequency: {operation.atc_frequency}."
+        )
+
+    if _clean(operation.atc_checkin_procedure):
+        details.append(
+            "The planned coordination/check-in procedure is: "
+            f"{operation.atc_checkin_procedure}"
+        )
+
+    if not details:
+        return (
+            "ATC coordination details have not yet been fully entered. "
+            "The RPIC must review and complete this section before submission."
+        )
+
+    return " ".join(details)
+
+
+def _see_and_avoid(approval) -> str:
+    operation = approval.operation
+    details = []
+
+    if _clean(operation.air_risk_mitigation):
+        details.append(_clean(operation.air_risk_mitigation))
+
+    if operation.uses_visual_observers:
+        details.append(
+            "Visual observers will support continuous scanning for crewed "
+            "aircraft and other airborne hazards."
+        )
+
+    if operation.uses_flight_tracking:
+        details.append(
+            "The crew will use the documented crewed-aircraft traffic "
+            "awareness/tracking system as a supplemental situational-awareness "
+            "tool; visual see-and-avoid responsibilities remain primary."
+        )
+
+    details.append(
+        "Upon detection of a potential conflict with a crewed aircraft, "
+        "the RPIC will immediately descend, reposition, land, or otherwise "
+        "suspend the UAS operation as necessary to maintain safe separation."
+    )
+
+    return " ".join(details)
+
+
+def _flight_envelope_limitations(approval) -> str:
+    operation = approval.operation
+    parts = []
+
+    if operation.maximum_planned_altitude_agl is not None:
+        parts.append(
+            f"Operations are planned at or below "
+            f"{operation.maximum_planned_altitude_agl} feet AGL."
+        )
+
+    if operation.max_wind_mph is not None:
+        parts.append(
+            f"The maximum planned operating wind is "
+            f"{operation.max_wind_mph} MPH."
+        )
+
+    if operation.uses_standard_part_107_weather_minimums:
+        parts.append(
+            "The operation will use the standard Part 107 weather minimums "
+            "recorded in the planning package."
+        )
+
+    if _clean(operation.weather_go_nogo):
+        parts.append(
+            f"Weather and operational go/no-go criteria include: "
+            f"{operation.weather_go_nogo}"
+        )
+
+    if _clean(operation.termination_conditions):
+        parts.append(
+            f"Operations will be suspended or terminated when: "
+            f"{operation.termination_conditions}"
+        )
+
+    return " ".join(parts) or (
+        "Flight-envelope and operating limitations require RPIC completion."
+    )
+
+
+def _crew_resource_management(approval) -> str:
+    return _rpic_and_crew(approval)
+
+
+def _aircraft_capabilities(approval) -> str:
+    return _aircraft_and_systems(approval)
+
+
+def _operational_risk_controls(approval) -> str:
+    operation = approval.operation
+    sections = []
+
+    preflight = []
+    if _clean(operation.weather_source):
+        preflight.append(
+            f"review weather information using {operation.weather_source}"
+        )
+    if _clean(operation.ground_risk_mitigation):
+        preflight.append("verify ground-risk controls are in place")
+    if _clean(operation.air_risk_mitigation):
+        preflight.append("confirm airspace-risk controls and traffic monitoring")
+
+    if preflight:
+        sections.append(
+            "Preflight Planning\n"
+            "Before flight, the RPIC will "
+            + ", ".join(preflight)
+            + ", and will conduct the documented crew and aircraft readiness checks."
+        )
+
+    sections.append(
+        "In-Flight Procedures\n"
+        + _ground_air_risk(approval)
+    )
+
+    sections.append(
+        "Post-Flight Procedures\n"
+        "Following flight, the RPIC will inspect the aircraft, document "
+        "relevant flight information and anomalies, and ensure any incident "
+        "or maintenance issue is addressed before the next operation."
+    )
+
+    return "\n\n".join(sections)
+
+
+def _emergency_procedures(approval) -> str:
+    return _lost_link_emergency(approval)
+
+
+def ordered_conops_sections(application):
+    """
+    Return current CONOPS sections in document order, never alphabetical order.
+    """
+    by_key = {
+        section.section_key: section
+        for section in application.conops_sections.all()
+    }
+    return [
+        by_key[definition.key]
+        for definition in CONOPS_DEFINITIONS
+        if definition.key in by_key
+    ]
+
+
 CONOPS_DEFINITIONS = (
     ConopsDefinition(
-        "operation-overview",
-        "1. Operation Overview and Purpose",
+        "operational-overview",
+        "1.0 Operational Overview",
         _operation_overview,
     ),
     ConopsDefinition(
-        "requested-approval",
-        "2. Requested FAA Waiver / Approval",
-        _requested_approval,
+        "operational-area-airspace",
+        "2.0 Operational Area and Airspace",
+        _controlled_area_airspace,
     ),
     ConopsDefinition(
-        "dates-location-airspace",
-        "3. Dates, Location, Altitude, and Airspace",
-        _dates_location_airspace,
+        "airspace-atc-coordination",
+        "3.0 Airspace Integration and ATC Coordination",
+        _airspace_atc_coordination,
     ),
     ConopsDefinition(
-        "rpic-and-crew",
-        "4. Remote Pilot and Crew",
-        _rpic_and_crew,
+        "see-and-avoid",
+        "4.0 See-and-Avoid Methodology",
+        _see_and_avoid,
     ),
     ConopsDefinition(
-        "aircraft-and-systems",
-        "5. Aircraft and Safety Systems",
-        _aircraft_and_systems,
+        "flight-envelope-limitations",
+        "5.0 Flight Envelope and Operating Limitations",
+        _flight_envelope_limitations,
     ),
     ConopsDefinition(
-        "area-and-containment",
-        "6. Operational Area and Containment",
-        _area_and_containment,
+        "crew-resource-management",
+        "6.0 Crew Resource Management",
+        _crew_resource_management,
     ),
     ConopsDefinition(
-        "ground-and-air-risk",
-        "7. Ground and Air Risk Controls",
-        _ground_air_risk,
+        "aircraft-capabilities",
+        "7.0 Aircraft Capabilities",
+        _aircraft_capabilities,
     ),
     ConopsDefinition(
-        "lost-link-and-emergency",
-        "8. Lost-Link and Emergency Procedures",
-        _lost_link_emergency,
+        "operational-risk-controls",
+        "8.0 Operational Risk Controls",
+        _operational_risk_controls,
     ),
     ConopsDefinition(
-        "weather-and-night",
-        "9. Weather and Night Operations",
-        _weather_night,
-    ),
-    ConopsDefinition(
-        "safety-justification",
-        "10. Safety Justification",
-        _safety_justification,
-    ),
-    ConopsDefinition(
-        "approval-risk-mitigations",
-        "11. Approval-Specific Risk Mitigations",
-        _approval_risk_mitigations,
-    ),
-    ConopsDefinition(
-        "equivalent-level-of-safety",
-        "12. Equivalent Level of Safety",
-        _equivalent_safety,
-    ),
-    ConopsDefinition(
-        "conclusion",
-        "13. Operational Commitment",
-        _conclusion,
+        "emergency-procedures",
+        "9.0 Emergency Procedures",
+        _emergency_procedures,
     ),
 )
+
 
 
 def get_or_create_application(
@@ -537,6 +699,12 @@ def get_or_create_application(
         defaults={
             "user": user,
             "status": "draft",
+            "description": "",
+            "locked_description": False,
+            "ai_generation_model": "",
+            "conops_source_updated_at": None,
+            "ai_prompt_version": "",
+            "ai_generation_error": "",
         },
     )
 
@@ -609,7 +777,6 @@ def generate_conops(
     approval.operation.generated_conops_at = generated_at
     approval.operation.save(update_fields=["generated_conops_at"])
 
-    _sync_application_description(application)
     return application
 
 
@@ -650,4 +817,3 @@ def save_conops_review(application, submitted_sections):
             ]
         )
 
-    _sync_application_description(application)
