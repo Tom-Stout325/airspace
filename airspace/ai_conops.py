@@ -17,7 +17,7 @@ from .conops import CONOPS_DEFINITIONS, get_or_create_application
 from .models import ApprovalApplication, ConopsSection, OperationApproval
 
 
-PROMPT_VERSION = "controlled-airspace-v2"
+PROMPT_VERSION = "controlled-airspace-v3"
 
 
 class OpenAIConopsError(RuntimeError):
@@ -167,6 +167,22 @@ def _operation_payload(
     ]
 
     return {
+        "regulatory_context": {
+            "application_scope": (
+                "14 CFR 107.41 controlled-airspace authorization; "
+                "no other Part 107 relief is implied"
+            ),
+            "standard_part_107_weather": {
+                "minimum_flight_visibility_sm": 3,
+                "minimum_below_cloud_ft": 500,
+                "minimum_horizontal_from_cloud_ft": 2000,
+                "fixed_cloud_ceiling": None,
+            },
+            "uasfm_rule": (
+                "Do not state a UASFM grid altitude unless it is "
+                "explicitly present in operation planning data."
+            ),
+        },
         "document_purpose": {
             "short_output": (
                 "Description of Operations for the FAA application form"
@@ -211,7 +227,19 @@ The primary target is a professional 14 CFR 107.41 controlled-airspace
 authorization package. Write like an experienced UAS operator preparing a
 concise operational document for FAA review, not like a database export.
 
-Create two separate deliverables from the supplied planning record:
+SOURCE FIDELITY IS MANDATORY:
+- Use only mission purpose, venue type, event type, client, activity, and
+  operational context explicitly supplied in the planning JSON.
+- Never infer racing, sports, construction, inspection, public safety,
+  agriculture, mapping, real estate, media production, or any other use case
+  from a venue name, address, previous generation, aircraft, crowd size, or
+  other contextual clue.
+- If the user entered only a general purpose such as "aerial photography" or
+  "mapping", use only that description.
+- Do not introduce a named event, organization, race, sport, or business
+  activity unless it appears explicitly in the supplied planning data.
+
+Create two separate deliverables:
 
 1. description_of_operations
    - Write 2 to 3 concise paragraphs suitable for the FAA DroneZone
@@ -226,63 +254,91 @@ Create two separate deliverables from the supplied planning record:
    - Do NOT reproduce the full CONOPS.
 
 2. sections
-   - Produce the complete CONOPS using every key/title in expected_sections
-     exactly once and in the supplied order.
+   - Produce every key/title in expected_sections exactly once and in the
+     supplied order.
    - Treat the sections as chapters of one coherent document.
    - Prefer concise narrative paragraphs.
    - Use bullets only when they improve readability for aircraft capabilities,
      procedural steps, operating limitations, or emergency actions.
-   - Do not turn ordinary planning fields into label/value lines.
    - Avoid repeating the same fact in multiple sections.
    - Target a concise attachment rather than an exhaustive safety manual.
 
-Writing guidance by section:
-- Operational Overview: Explain mission purpose and requested FAA action in
-  one concise opening narrative.
-- Operational Area and Airspace: Describe the physical operating area,
-  boundaries, location, altitude, nearby airport, and controlled airspace as
-  one operational picture.
-- Airspace Integration and ATC Coordination: Explain how the operation
-  integrates with the controlling airspace and any entered ATC coordination,
-  contact, frequency, check-in, or UASFM-related procedures. Do not invent ATC
-  requirements that are not in the planning record.
-- See-and-Avoid Methodology: Explain visual scanning, VO support, traffic
-  awareness tools, and the immediate action used for a crewed-aircraft
-  conflict.
-- Flight Envelope and Operating Limitations: State the planned altitude,
-  weather/wind limits, geographic limitations, and go/no-go or termination
-  criteria without restating the entire operation.
-- Crew Resource Management: Explain RPIC/VO responsibilities, communication,
-  briefing, and relevant documented experience.
-- Aircraft Capabilities: Summarize each assigned aircraft and the safety
-  capabilities actually supplied in the planning record. Bullets are
-  appropriate here.
-- Operational Risk Controls: Write three natural subsections inside the
-  content: Preflight Planning, In-Flight Procedures, and Post-Flight
-  Procedures. Integrate ground-risk and air-risk controls into those
-  procedures.
-- Emergency Procedures: Organize the supplied procedures into concise
-  subsections such as Lost Link / Flyaway, Airspace Conflict, Equipment or
-  Aircraft Failure, and Emergency Landing / Incident Response when supported
-  by the planning record.
+FAA / REGULATORY GUARDRAILS FOR A STANDARD §107.41 REQUEST:
+- A §107.41 controlled-airspace authorization does not itself waive other
+  Part 107 operating rules.
+- When the planning record uses standard Part 107 weather minimums, describe
+  them as at least 3 statute miles flight visibility and remaining at least
+  500 feet below and 2,000 feet horizontally from clouds.
+- Do NOT convert cloud-clearance requirements into a fixed "minimum cloud
+  ceiling" such as 200 feet or any other invented ceiling.
+- Do NOT state or imply that obstacle sensing, LiDAR, Return-to-Home,
+  geofencing, or similar aircraft systems provide separation from crewed
+  aircraft. They are aircraft-control / obstacle-avoidance safety systems.
+- Do NOT imply that event security, ground security, or venue personnel
+  provide ATC or airspace-control functions.
+- Direct contact with ATC is not a substitute for the required §107.41
+  authorization. If the planning record does not contain a specific ATC
+  procedure, state that the operation will not begin until the authorization
+  is issued and that the RPIC will comply with all applicable limitations and
+  special provisions in the authorization.
+- Never invent an ATC telephone number, frequency, facility, notification
+  requirement, or check-in procedure.
+- If an ATC contact or frequency exists in the planning record, reproduce it
+  exactly and describe it only for the purpose entered by the user.
+- Do not mention a UAS Facility Map (UASFM) grid altitude unless a grid
+  altitude is explicitly supplied in the planning data. Never invent a grid
+  altitude or claim that the requested altitude is within a UASFM value when
+  that fact is not supplied.
+- Do not claim that a requested altitude is operationally necessary unless the
+  planning record contains the user's altitude justification.
+- When the planning record indicates spectators, public access, or other
+  non-participating persons, do not imply that §107.41 permits flight over
+  them. State, when relevant, that operations will avoid non-participating
+  persons/open-air assemblies unless a separately applicable Part 107
+  compliance basis is documented in the planning record.
+- Never invent a separate operations-over-people waiver or approval.
 
-Mandatory factual rules:
+WRITING GUIDANCE BY SECTION:
+- Operational Overview: Explain the user-entered mission purpose and requested
+  FAA action in one concise opening narrative. Do not infer the mission.
+- Operational Area and Airspace: Describe the actual planned operating area,
+  coordinates, boundaries, altitude, nearby airport, and controlled airspace
+  as one operational picture. Distinguish the actual operating GPS location
+  from a facility mailing address.
+- Airspace Integration and ATC Coordination: Describe the authorization,
+  any user-entered ATC coordination, and compliance with issued special
+  provisions. Do not add vague phrases such as "local airspace control".
+- See-and-Avoid Methodology: Explain visual scanning, VO support, traffic
+  awareness tools, and immediate descent/reposition/landing/suspension for a
+  crewed-aircraft conflict.
+- Flight Envelope and Operating Limitations: State planned altitude,
+  geographic limits, wind/weather limits, correct cloud clearances, and
+  go/no-go/termination criteria without restating the entire operation.
+- Crew Resource Management: Explain RPIC/VO responsibilities, communication,
+  briefing, and only the experience explicitly supplied by the user.
+- Aircraft Capabilities: Summarize assigned aircraft and supplied safety
+  features. Make clear that these systems supplement aircraft control and
+  obstacle avoidance, not crewed-aircraft separation.
+- Operational Risk Controls: Use natural Preflight Planning, In-Flight
+  Procedures, and Post-Flight Procedures subsections. Integrate ground and air
+  risk controls without repeating the same controls in every subsection.
+- Emergency Procedures: Organize only supplied procedures into concise
+  subsections such as Lost Link / Flyaway, Airspace Conflict, Equipment or
+  Aircraft Failure, and Emergency Landing / Incident Response. Treat saved
+  ATC emergency contact information as user-supplied data, not as verified FAA
+  information.
+
+MANDATORY FACTUAL RULES:
 - Use only facts contained in the supplied JSON planning record.
 - Never invent equipment, capabilities, pilot qualifications, contacts,
-  approvals, frequencies, coordinates, procedures, mitigations, or operating
-  limits.
+  approvals, frequencies, coordinates, procedures, mitigations, event names,
+  operating limits, or regulatory relief.
 - Preserve numeric values, dates, identifiers, regulations, and contact
   information exactly as supplied.
-- If an important fact is missing, state briefly that RPIC completion is
+- If important information is missing, state briefly that RPIC completion is
   required; do not manufacture a value.
 - Do not claim or imply FAA approval.
-- Distinguish a §107.41 airspace authorization from an operational waiver.
-- For a standard §107.41 authorization, do not create standalone chapters
-  titled Equivalent Level of Safety, Safety Justification, Approval-Specific
-  Risk Mitigations, or Operational Commitment. Integrate relevant safety
-  material naturally into the operational sections.
-- Treat all generated text as a draft requiring RPIC review.
-"""
+- Treat all generated text as a draft requiring RPIC review."""
 
 
 def _request_ai_document(

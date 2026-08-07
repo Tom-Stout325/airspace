@@ -473,40 +473,44 @@ def _airspace_atc_coordination(approval) -> str:
 
     if _clean(operation.atc_facility_name):
         details.append(
-            f"The controlling or coordinating ATC facility identified in "
-            f"the planning record is {operation.atc_facility_name}."
+            f"The ATC facility identified in the planning record is "
+            f"{operation.atc_facility_name}."
         )
 
     if _clean(operation.atc_coordination_method):
         details.append(
-            "Planned ATC coordination method: "
+            "The user-entered coordination method is "
             f"{operation.get_atc_coordination_method_display()}."
         )
 
     if _clean(operation.atc_phone):
         details.append(
-            f"ATC contact telephone: {operation.atc_phone}."
+            f"The planning record lists ATC telephone "
+            f"{operation.atc_phone}."
         )
 
     if _clean(operation.atc_frequency):
         details.append(
-            f"ATC frequency: {operation.atc_frequency}."
+            f"The planning record lists ATC frequency "
+            f"{operation.atc_frequency}."
         )
 
     if _clean(operation.atc_checkin_procedure):
         details.append(
-            "The planned coordination/check-in procedure is: "
+            "The user-entered ATC/check-in procedure is: "
             f"{operation.atc_checkin_procedure}"
         )
 
     if not details:
-        return (
-            "ATC coordination details have not yet been fully entered. "
-            "The RPIC must review and complete this section before submission."
+        details.append(
+            "The operation will not begin until the required §107.41 "
+            "authorization has been issued. The RPIC will comply with all "
+            "altitude limits, geographic restrictions, operating times, "
+            "notification requirements, and other special provisions "
+            "contained in the issued authorization."
         )
 
     return " ".join(details)
-
 
 def _see_and_avoid(approval) -> str:
     operation = approval.operation
@@ -555,8 +559,9 @@ def _flight_envelope_limitations(approval) -> str:
 
     if operation.uses_standard_part_107_weather_minimums:
         parts.append(
-            "The operation will use the standard Part 107 weather minimums "
-            "recorded in the planning package."
+            "Standard Part 107 weather minimums will apply: at least "
+            "3 statute miles flight visibility and at least 500 feet below "
+            "and 2,000 feet horizontally from clouds."
         )
 
     if _clean(operation.weather_go_nogo):
@@ -574,7 +579,6 @@ def _flight_envelope_limitations(approval) -> str:
     return " ".join(parts) or (
         "Flight-envelope and operating limitations require RPIC completion."
     )
-
 
 def _crew_resource_management(approval) -> str:
     return _rpic_and_crew(approval)
