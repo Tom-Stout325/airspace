@@ -246,6 +246,13 @@ def _requested_approval(approval) -> str:
     )
 
 
+def _is_controlled_airspace_only_request(approval) -> bool:
+    return (
+        approval.approval_type.code == "controlled-airspace"
+        and not approval.operation.approvals.exclude(pk=approval.pk).exists()
+    )
+
+
 def _dates_location_airspace(approval) -> str:
     operation = approval.operation
     timeframe = _choice_labels(
@@ -254,9 +261,11 @@ def _dates_location_airspace(approval) -> str:
     )
 
     altitude = (
-        f"{operation.maximum_planned_altitude_agl} feet AGL"
+        "Requested maximum altitude: "
+        f"{operation.maximum_planned_altitude_agl} feet AGL, subject to "
+        "the altitude authorized by the FAA."
         if operation.maximum_planned_altitude_agl is not None
-        else "not yet entered"
+        else "Maximum planned altitude: not yet entered."
     )
 
     return (
@@ -269,7 +278,7 @@ def _dates_location_airspace(approval) -> str:
         f"Coordinates: {_coordinates(operation)}\n"
         f"Airspace classification: "
         f"{operation.get_airspace_class_display() if operation.airspace_class else 'not yet determined'}.\n"
-        f"Maximum planned altitude: {altitude}.\n"
+        f"{altitude}\n"
         f"{_airport_description(operation)}"
     )
 
@@ -501,6 +510,13 @@ def _airspace_atc_coordination(approval) -> str:
             f"{operation.atc_checkin_procedure}"
         )
 
+    if _is_controlled_airspace_only_request(approval):
+        details.append(
+            "This application requests a controlled-airspace authorization "
+            "under §107.41 and does not request relief from any other Part "
+            "107 requirement."
+        )
+
     if not details:
         details.append(
             "The operation will not begin until the required §107.41 "
@@ -519,17 +535,22 @@ def _see_and_avoid(approval) -> str:
     if _clean(operation.air_risk_mitigation):
         details.append(_clean(operation.air_risk_mitigation))
 
-    if operation.uses_visual_observers:
+    if operation.has_visual_observer:
         details.append(
             "Visual observers will support continuous scanning for crewed "
             "aircraft and other airborne hazards."
         )
 
     if operation.uses_flight_tracking:
+        tracking_service = _clean(operation.flight_tracking_service)
+        tracking_subject = tracking_service or (
+            "The documented crewed-aircraft tracking system"
+        )
         details.append(
-            "The crew will use the documented crewed-aircraft traffic "
-            "awareness/tracking system as a supplemental situational-awareness "
-            "tool; visual see-and-avoid responsibilities remain primary."
+            f"{tracking_subject} will be used as a supplemental "
+            "situational-awareness tool and does not replace visual scanning, "
+            "see-and-avoid responsibilities, or the RPIC's obligation to "
+            "yield right of way to crewed aircraft."
         )
 
     details.append(
@@ -547,8 +568,10 @@ def _flight_envelope_limitations(approval) -> str:
 
     if operation.maximum_planned_altitude_agl is not None:
         parts.append(
-            f"Operations are planned at or below "
-            f"{operation.maximum_planned_altitude_agl} feet AGL."
+            "The sUAS will operate at or below the requested maximum altitude "
+            f"of {operation.maximum_planned_altitude_agl} feet AGL and will "
+            "not exceed any lower altitude limitation specified in the FAA "
+            "authorization."
         )
 
     if operation.max_wind_mph is not None:
@@ -820,4 +843,3 @@ def save_conops_review(application, submitted_sections):
                 "updated_at",
             ]
         )
-

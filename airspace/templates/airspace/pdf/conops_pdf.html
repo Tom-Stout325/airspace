@@ -44,7 +44,7 @@
     {% if logo_uri %}<img class="logo" src="{{ logo_uri }}" alt="AirSpace">{% endif %}
     <div style="color:SteelBlue;font-weight:bold;text-transform:uppercase;letter-spacing:.06em;">Concept of Operations</div>
     <h1>{{ operation.operation_title }}</h1>
-    <p>{{ approval.approval_type }}{% if approval.regulation_display %} · {{ approval.regulation_display }}{% endif %}</p>
+    <p>{{ approval.approval_type.name }}{% if approval.regulation_display %} · {{ approval.regulation_display }}{% endif %}</p>
     <div class="meta">
       <strong>Generated:</strong> {{ generated_at|date:"F j, Y g:i A T" }}<br>
       <strong>Model:</strong> {{ application.ai_generation_model|default:"Not recorded" }}<br>

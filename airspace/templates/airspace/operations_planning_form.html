@@ -439,6 +439,7 @@
         <div class="row g-3">
           {% include "airspace/partials/_boolean_field.html" with field=form.uses_drone_detection %}
           {% include "airspace/partials/_boolean_field.html" with field=form.uses_flight_tracking %}
+          {% include "airspace/partials/_field.html" with field=form.flight_tracking_service %}
           {% include "airspace/partials/_boolean_field.html" with field=form.has_visual_observer %}
           {% include "airspace/partials/_field.html" with field=form.insurance_provider %}
           {% include "airspace/partials/_field.html" with field=form.insurance_coverage_limit %}

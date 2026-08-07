@@ -4,10 +4,12 @@ import json
 import os
 from datetime import date, datetime
 from decimal import Decimal
+from pathlib import PurePosixPath
 from typing import Any
 
 from django.conf import settings
 from django.db import transaction
+from django.db.models.fields.files import FieldFile
 from django.forms.models import model_to_dict
 from django.utils import timezone
 from openai import OpenAI
@@ -60,6 +62,16 @@ def _json_value(value: Any) -> Any:
         return value.isoformat()
     if isinstance(value, Decimal):
         return str(value)
+    if isinstance(value, FieldFile):
+        stored_name = str(value.name or "")
+        return {
+            "present": bool(stored_name),
+            "filename": (
+                PurePosixPath(stored_name).name
+                if stored_name
+                else ""
+            ),
+        }
     if isinstance(value, (list, tuple)):
         return [_json_value(item) for item in value]
     if isinstance(value, dict):
@@ -76,6 +88,10 @@ def _operation_payload(
     approval: OperationApproval,
 ) -> dict[str, Any]:
     operation = approval.operation
+    controlled_airspace_only = (
+        approval.approval_type.code == "controlled-airspace"
+        and not operation.approvals.exclude(pk=approval.pk).exists()
+    )
 
     excluded_operation_fields = {
         "user",
@@ -182,6 +198,7 @@ def _operation_payload(
                 "Do not state a UASFM grid altitude unless it is "
                 "explicitly present in operation planning data."
             ),
+            "controlled_airspace_only": controlled_airspace_only,
         },
         "document_purpose": {
             "short_output": (
@@ -291,6 +308,21 @@ FAA / REGULATORY GUARDRAILS FOR A STANDARD §107.41 REQUEST:
   that fact is not supplied.
 - Do not claim that a requested altitude is operationally necessary unless the
   planning record contains the user's altitude justification.
+- Describe maximum_planned_altitude_agl as the requested maximum altitude,
+  never as an altitude already authorized. State that the operation remains
+  subject to the altitude authorized by the FAA and will not exceed any lower
+  altitude limitation in the issued authorization. Always use the actual
+  numeric altitude supplied in the planning record.
+- Only when regulatory_context.controlled_airspace_only is true, state: "This
+  application requests a controlled-airspace authorization under §107.41 and
+  does not request relief from any other Part 107 requirement." Do not call a
+  §107.41 controlled-airspace authorization a waiver.
+- When uses_flight_tracking is true, identify only the user-entered
+  flight_tracking_service when one is supplied. Describe that service as a
+  supplemental situational-awareness tool that does not replace visual
+  scanning, see-and-avoid responsibilities, or the RPIC's obligation to yield
+  right of way to crewed aircraft. Never substitute or invent FlightAware or
+  another service name.
 - When the planning record indicates spectators, public access, or other
   non-participating persons, do not imply that §107.41 permits flight over
   them. State, when relevant, that operations will avoid non-participating
@@ -335,6 +367,8 @@ MANDATORY FACTUAL RULES:
   operating limits, or regulatory relief.
 - Preserve numeric values, dates, identifiers, regulations, and contact
   information exactly as supplied.
+- Preserve user-entered emergency and ATC notification procedures exactly; do
+  not remove, replace, or rewrite them.
 - If important information is missing, state briefly that RPIC completion is
   required; do not manufacture a value.
 - Do not claim or imply FAA approval.

@@ -352,6 +352,24 @@ Do not preserve obsolete patch-installation documentation after a patch has been
 
 Treat `scripts/scripts.txt` as informal working notes, not authoritative project documentation.
 
+## User working notes
+
+`scripts/scripts.txt` is the user's personal, intentionally modified working-notes file.
+
+Unless the user explicitly requests otherwise:
+
+- Ignore its modified Git status.
+- Do not inspect its contents as part of routine repository analysis.
+- Do not modify it.
+- Do not restore or revert it.
+- Do not stage it.
+- Do not commit it.
+- Do not include it in unrelated diffs or cleanup work.
+- Do not report its modified status as an error, concern, dirty-working-tree problem, or blocker.
+- Its presence as a modified tracked file does not mean the repository is unsafe for normal development work.
+
+Only interact with `scripts/scripts.txt` when the user explicitly asks you to work with that file.
+
 ## When uncertain
 
 If a requested implementation could:

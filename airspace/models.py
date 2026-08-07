@@ -3,6 +3,7 @@ import uuid
 
 from decimal import Decimal
 from math import atan2, cos, radians, sin, sqrt
+from pathlib import Path
 
 from django.conf import settings
 from django.contrib.postgres.fields import ArrayField
@@ -256,6 +257,7 @@ class OperationsPlanning(models.Model):
 
     uses_drone_detection = models.BooleanField(default=False)
     uses_flight_tracking = models.BooleanField(default=False)
+    flight_tracking_service = models.CharField(max_length=255, blank=True)
     has_visual_observer = models.BooleanField(default=False)
     safety_features_notes = models.TextField(blank=True)
     insurance_provider = models.CharField(max_length=255, blank=True)

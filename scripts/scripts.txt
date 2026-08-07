@@ -44,3 +44,25 @@ Needs help with:
 Safety Justification
 Risk Mitigations
 Equivalent Level of Safety
+
+
+
+
+Codex Prompt:
+Implement the following AirSpace feature...
+
+[requirements]
+
+Before editing, inspect the relevant existing implementation.
+
+Follow AGENTS.md.
+
+After implementation:
+- review the diff
+- run git diff --check
+- run relevant Django tests
+- run Django system checks
+- report migrations created
+- report any concerns
+
+Do not commit or push.

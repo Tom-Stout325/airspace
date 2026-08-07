@@ -1,11 +1,25 @@
 from unittest.mock import MagicMock, patch
 from datetime import date
+import json
+from tempfile import TemporaryDirectory
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
+from django.template.loader import render_to_string
 from django.urls import reverse
+from django.utils import timezone
 from drones.models import Drone
 from pilot.models import PilotProfile
+from .ai_conops import _operation_payload, _system_prompt
+from .conops import (
+    _airspace_atc_coordination,
+    _dates_location_airspace,
+    _emergency_procedures,
+    _flight_envelope_limitations,
+    _see_and_avoid,
+    get_or_create_application,
+)
 from .forms import OperationsPlanningForm
 from .models import (
     Airport,
@@ -138,6 +152,96 @@ class OperationsPlanningTests(TestCase):
         self.assertIsNone(operation.pilot_profile)
         self.assertEqual(operation.pilot_cert_manual, "")
 
+    def test_operation_map_upload_is_saved_through_planning_form(self):
+        uploaded_map = SimpleUploadedFile(
+            "Operation-Map.PDF",
+            b"%PDF-1.4 test map",
+            content_type="application/pdf",
+        )
+
+        with TemporaryDirectory() as media_root, self.settings(
+            MEDIA_ROOT=media_root,
+        ):
+            form = OperationsPlanningForm(
+                data=self.operation_form_data(),
+                files={"operation_map": uploaded_map},
+                user=self.owner,
+            )
+
+            self.assertTrue(form.is_valid(), form.errors)
+            operation = form.save()
+
+            self.assertRegex(
+                operation.operation_map.name,
+                rf"^operation_maps/user_{self.owner.pk}/[0-9a-f]{{32}}\.pdf$",
+            )
+            self.assertTrue(
+                operation.operation_map.storage.exists(
+                    operation.operation_map.name,
+                )
+            )
+
+    def test_ai_payload_serializes_operation_map_as_safe_metadata(self):
+        uploaded_map = SimpleUploadedFile(
+            "Private-Operation-Map.PDF",
+            b"%PDF-1.4 private test map",
+            content_type="application/pdf",
+        )
+
+        with TemporaryDirectory() as media_root, self.settings(
+            MEDIA_ROOT=media_root,
+        ):
+            form = OperationsPlanningForm(
+                data=self.operation_form_data(
+                    operation_title="Mapped AI payload operation",
+                ),
+                files={"operation_map": uploaded_map},
+                user=self.owner,
+            )
+            self.assertTrue(form.is_valid(), form.errors)
+            operation = form.save()
+            approval_type = ApprovalType.objects.create(
+                code="mapped-payload-test",
+                category="airspace",
+                name="Mapped payload test",
+            )
+            approval = OperationApproval.objects.create(
+                operation=operation,
+                approval_type=approval_type,
+            )
+
+            payload = _operation_payload(approval)
+            serialized = json.dumps(payload)
+
+            map_metadata = payload["operation"]["operation_map"]
+            self.assertTrue(map_metadata["present"])
+            self.assertEqual(
+                map_metadata["filename"],
+                operation.operation_map.name.rsplit("/", 1)[-1],
+            )
+            self.assertNotIn(media_root, serialized)
+            self.assertNotIn(operation.operation_map.path, serialized)
+            self.assertNotIn(operation.operation_map.url, serialized)
+
+    def test_ai_payload_serializes_missing_operation_map(self):
+        approval_type = ApprovalType.objects.create(
+            code="unmapped-payload-test",
+            category="airspace",
+            name="Unmapped payload test",
+        )
+        approval = OperationApproval.objects.create(
+            operation=self.operation,
+            approval_type=approval_type,
+        )
+
+        payload = _operation_payload(approval)
+
+        self.assertEqual(
+            payload["operation"]["operation_map"],
+            {"present": False, "filename": ""},
+        )
+        json.dumps(payload)
+
     def test_other_user_cannot_open_operation(self):
         self.client.force_login(self.other)
         response = self.client.get(reverse("airspace:operations_planning_detail", kwargs={"pk": self.operation.pk}))
@@ -163,6 +267,171 @@ class OperationsPlanningTests(TestCase):
         OperationApproval.objects.create(operation=self.operation, approval_type=altitude)
         OperationApproval.objects.create(operation=self.operation, approval_type=bvlos)
         self.assertEqual(self.operation.approvals.count(), 2)
+
+
+class ControlledAirspaceConopsWordingTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="conops-wording@example.com",
+            password="test-pass-123",
+        )
+        self.operation = OperationsPlanning.objects.create(
+            user=self.user,
+            operation_title="Controlled airspace wording test",
+            start_date=date.today(),
+            maximum_planned_altitude_agl=375,
+            uses_flight_tracking=True,
+            flight_tracking_service="SkyTrack Pro",
+            atc_checkin_procedure=(
+                "Call the recorded ATC contact before launch and report "
+                "operation termination after landing."
+            ),
+            emergency_response_plan=(
+                "Notify ATC and emergency services using the saved contact "
+                "plan when an emergency affects the airspace."
+            ),
+        )
+        self.approval_type = ApprovalType.objects.create(
+            code="controlled-airspace",
+            category="airspace",
+            regulation="§107.41",
+            name="Controlled Airspace Authorization",
+        )
+        self.approval = OperationApproval.objects.create(
+            operation=self.operation,
+            approval_type=self.approval_type,
+        )
+
+    def test_requested_altitude_is_qualified_by_faa_authorization(self):
+        area_text = _dates_location_airspace(self.approval)
+        envelope_text = _flight_envelope_limitations(self.approval)
+
+        self.assertIn("375 feet AGL", area_text)
+        self.assertIn("subject to the altitude authorized by the FAA", area_text)
+        self.assertIn(
+            "requested maximum altitude of 375 feet AGL",
+            envelope_text,
+        )
+        self.assertIn(
+            "not exceed any lower altitude limitation specified in the FAA authorization",
+            envelope_text,
+        )
+
+    def test_controlled_airspace_only_request_uses_authorization_language(self):
+        text = _airspace_atc_coordination(self.approval)
+
+        self.assertIn(
+            "This application requests a controlled-airspace authorization "
+            "under §107.41 and does not request relief from any other Part "
+            "107 requirement.",
+            text,
+        )
+        self.assertNotIn("does not request any waivers", text)
+
+        other_type = ApprovalType.objects.create(
+            code="107-31-bvlos-wording-test",
+            category="operational_waiver",
+            regulation="§107.31",
+            name="Beyond Visual Line of Sight",
+        )
+        OperationApproval.objects.create(
+            operation=self.operation,
+            approval_type=other_type,
+        )
+
+        text_with_other_relief = _airspace_atc_coordination(self.approval)
+        self.assertNotIn(
+            "does not request relief from any other Part 107 requirement",
+            text_with_other_relief,
+        )
+
+    def test_tracking_service_is_named_as_supplemental_only(self):
+        text = _see_and_avoid(self.approval)
+
+        self.assertIn(
+            "SkyTrack Pro will be used as a supplemental situational-awareness tool",
+            text,
+        )
+        self.assertIn("does not replace visual scanning", text)
+        self.assertIn("RPIC's obligation to yield right of way", text)
+        self.assertNotIn("FlightAware", text)
+
+        self.operation.flight_tracking_service = "FlightAware"
+        self.operation.save(update_fields=["flight_tracking_service"])
+
+        self.assertIn(
+            "FlightAware will be used as a supplemental situational-awareness tool",
+            _see_and_avoid(self.approval),
+        )
+
+    def test_user_entered_atc_and_emergency_procedures_are_preserved(self):
+        self.assertIn(
+            self.operation.atc_checkin_procedure,
+            _airspace_atc_coordination(self.approval),
+        )
+        self.assertIn(
+            self.operation.emergency_response_plan,
+            _emergency_procedures(self.approval),
+        )
+
+    def test_ai_payload_and_prompt_include_wording_guardrails(self):
+        payload = _operation_payload(self.approval)
+        prompt = _system_prompt()
+
+        self.assertTrue(
+            payload["regulatory_context"]["controlled_airspace_only"]
+        )
+        self.assertEqual(
+            payload["operation"]["flight_tracking_service"],
+            "SkyTrack Pro",
+        )
+        self.assertIn("requested maximum altitude", prompt)
+        self.assertIn("does not request relief from any other Part 107 requirement", prompt)
+        self.assertIn("Never substitute or invent FlightAware", prompt)
+        self.assertIn(
+            "Preserve user-entered emergency and ATC notification procedures exactly",
+            prompt,
+        )
+
+    def test_conops_headings_render_regulation_only_once(self):
+        self.client.force_login(self.user)
+        response = self.client.get(
+            reverse(
+                "airspace:operation_conops_review",
+                kwargs={
+                    "operation_pk": self.operation.pk,
+                    "approval_pk": self.approval.pk,
+                },
+            )
+        )
+
+        expected_heading = "Controlled Airspace Authorization · §107.41"
+        duplicate_heading = (
+            "§107.41 — Controlled Airspace Authorization · §107.41"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, duplicate_heading)
+        self.assertEqual(
+            response.content.decode("utf-8").count("§107.41"),
+            1,
+        )
+
+        application = get_or_create_application(self.approval, self.user)
+        rendered_pdf = render_to_string(
+            "airspace/pdf/conops_pdf.html",
+            {
+                "operation": self.operation,
+                "approval": self.approval,
+                "application": application,
+                "sections": [],
+                "generated_at": timezone.now(),
+                "all_sections_complete": False,
+                "logo_uri": "",
+            },
+        )
+        self.assertIn(expected_heading, rendered_pdf)
+        self.assertNotIn(duplicate_heading, rendered_pdf)
+
 
 # ---------------------------------------------------------------------------
 # Address search and nearest-airport tests
