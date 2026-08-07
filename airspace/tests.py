@@ -17,6 +17,7 @@ from .conops import (
     _dates_location_airspace,
     _emergency_procedures,
     _flight_envelope_limitations,
+    _operation_overview,
     _see_and_avoid,
     get_or_create_application,
 )
@@ -28,7 +29,7 @@ from .models import (
     OperationApproval,
     OperationsPlanning,
 )
-from .services import search_openstreetmap_address
+from .services import build_waiver_description_prompt, search_openstreetmap_address
 
 User = get_user_model()
 
@@ -317,6 +318,45 @@ class ControlledAirspaceConopsWordingTests(TestCase):
             envelope_text,
         )
 
+    def test_description_prompt_requires_requested_altitude_wording(self):
+        prompt = build_waiver_description_prompt(self.operation)
+
+        self.assertIn("'maximum_planned_altitude_agl': 375", prompt)
+        self.assertIn(
+            "at or below the requested maximum altitude of [value] feet AGL "
+            "and subject to any lower altitude limitation specified in the "
+            "FAA authorization",
+            prompt,
+        )
+
+    def test_description_prompt_uses_authorization_not_waiver(self):
+        prompt = build_waiver_description_prompt(self.operation)
+
+        self.assertIn("'controlled_airspace_only': True", prompt)
+        self.assertIn(
+            "This application requests a controlled-airspace authorization "
+            "under §107.41 and does not request relief from any other Part "
+            "107 requirement.",
+            prompt,
+        )
+        self.assertIn("Do not call the §107.41 authorization a waiver", prompt)
+
+        other_type = ApprovalType.objects.create(
+            code="107-31-description-scope-test",
+            category="operational_waiver",
+            regulation="§107.31",
+            name="Beyond Visual Line of Sight",
+        )
+        OperationApproval.objects.create(
+            operation=self.operation,
+            approval_type=other_type,
+        )
+
+        self.assertIn(
+            "'controlled_airspace_only': False",
+            build_waiver_description_prompt(self.operation),
+        )
+
     def test_controlled_airspace_only_request_uses_authorization_language(self):
         text = _airspace_atc_coordination(self.approval)
 
@@ -363,6 +403,53 @@ class ControlledAirspaceConopsWordingTests(TestCase):
             "FlightAware will be used as a supplemental situational-awareness tool",
             _see_and_avoid(self.approval),
         )
+
+    def test_description_prompt_preserves_tracking_service_and_disclaimer(self):
+        prompt = build_waiver_description_prompt(self.operation)
+
+        self.assertIn("'flight_tracking_service': 'SkyTrack Pro'", prompt)
+        self.assertIn("supplemental situational awareness only", prompt)
+        self.assertIn("does not replace visual scanning", prompt)
+        self.assertIn("see-and-avoid responsibilities", prompt)
+        self.assertIn(
+            "RPIC's obligation to yield right of way to crewed aircraft",
+            prompt,
+        )
+        self.assertNotIn("FlightAware", prompt)
+
+    def test_description_prompt_distinguishes_routine_and_emergency_atc(self):
+        self.operation.atc_checkin_procedure = ""
+        self.operation.emergency_response_plan = (
+            "Notify ATC using the recorded emergency contact procedure."
+        )
+        self.operation.save(
+            update_fields=["atc_checkin_procedure", "emergency_response_plan"]
+        )
+
+        prompt = build_waiver_description_prompt(self.operation)
+
+        self.assertIn(self.operation.emergency_response_plan, prompt)
+        self.assertIn(
+            "No routine ATC check-in or communication procedure is prescribed. "
+            "User-defined emergency notification procedures are addressed in "
+            "Section 9.",
+            prompt,
+        )
+        self.assertIn("Do not say that no direct ATC procedure exists", prompt)
+
+    def test_user_entered_year_round_language_is_preserved(self):
+        year_round_text = (
+            "Operations are requested year-round, subject to the recorded "
+            "operating dates and FAA authorization."
+        )
+        self.operation.operation_description = year_round_text
+        self.operation.save(update_fields=["operation_description"])
+
+        self.assertIn(
+            f"'operation_description': '{year_round_text}'",
+            build_waiver_description_prompt(self.operation),
+        )
+        self.assertIn(year_round_text, _operation_overview(self.approval))
 
     def test_user_entered_atc_and_emergency_procedures_are_preserved(self):
         self.assertIn(

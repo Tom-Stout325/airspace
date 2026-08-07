@@ -70,6 +70,15 @@ def _bool_text(value: bool) -> str:
     return "Yes" if bool(value) else "No"
 
 
+def _is_controlled_airspace_only(planning: Any) -> bool:
+    if not getattr(planning, "pk", None):
+        return False
+    approval_codes = list(
+        planning.approvals.values_list("approval_type__code", flat=True)
+    )
+    return approval_codes == ["controlled-airspace"]
+
+
 def _labels_from_choices(values: List[str], choices: List[tuple]) -> List[str]:
     if not values:
         return []
@@ -250,7 +259,9 @@ def validate_controlled_airspace_description_requirements(planning: Any) -> None
 
 
 def build_waiver_description_prompt(planning) -> str:
-    timeframe_labels = _labels_from_choices(planning.timeframe_codes(), TIMEFRAME_CHOICES)
+    timeframe_labels = _labels_from_choices(
+        getattr(planning, "timeframe", []) or [], TIMEFRAME_CHOICES
+    )
     purpose_labels = _labels_from_choices(getattr(planning, "purpose_operations", []) or [], PURPOSE_OPERATIONS_CHOICES)
     ground_labels = _labels_from_choices(getattr(planning, "ground_environment", []) or [], GROUND_ENVIRONMENT_CHOICES)
     procedure_labels = _labels_from_choices(getattr(planning, "prepared_procedures", []) or [], PREPARED_PROCEDURES_CHOICES)
@@ -270,13 +281,16 @@ def build_waiver_description_prompt(planning) -> str:
     data: Dict[str, Any] = {
         # --- operation basics ---
         "operation_title": _clean(getattr(planning, "operation_title", "")),
+        "operation_description": _clean(getattr(planning, "operation_description", "")),
         "start_date": getattr(planning, "start_date", None) or "",
         "end_date": getattr(planning, "end_date", None) or "",
         "date_range": _date_range(planning),
         "timeframe": ", ".join(timeframe_labels),
         "frequency": _clean(getattr(planning, "frequency", "")),
         "local_time_zone": _clean(getattr(planning, "local_time_zone", "")),
-        "proposed_agl": getattr(planning, "proposed_agl", None) or "",
+        "maximum_planned_altitude_agl": getattr(
+            planning, "maximum_planned_altitude_agl", None
+        ) or "",
 
         # --- location / airspace ---
         "venue_name": _clean(getattr(planning, "venue_name", "")),
@@ -307,6 +321,7 @@ def build_waiver_description_prompt(planning) -> str:
         "has_visual_observer": _bool_text(getattr(planning, "has_visual_observer", False)),
         "uses_drone_detection": _bool_text(getattr(planning, "uses_drone_detection", False)),
         "uses_flight_tracking": _bool_text(getattr(planning, "uses_flight_tracking", False)),
+        "flight_tracking_service": _clean(getattr(planning, "flight_tracking_service", "")),
         "safety_features_notes": _clean(getattr(planning, "safety_features_notes", "")),
         "ground_environment": ", ".join(ground_labels),
         "estimated_crowd_size": _clean(getattr(planning, "estimated_crowd_size", "")),
@@ -317,6 +332,7 @@ def build_waiver_description_prompt(planning) -> str:
         "oop_waiver_number": _clean(getattr(planning, "oop_waiver_number", "")),
         "operates_under_107145": _bool_text(getattr(planning, "operates_under_107145", False)),
         "mv_waiver_number": _clean(getattr(planning, "mv_waiver_number", "")),
+        "controlled_airspace_only": _is_controlled_airspace_only(planning),
 
         # --- FAA specificity (controlled airspace waiver posture) ---
         "operation_area_type": _clean(getattr(planning, "operation_area_type", "")),
@@ -339,6 +355,7 @@ def build_waiver_description_prompt(planning) -> str:
         "atc_frequency": _clean(getattr(planning, "atc_frequency", "")),
         "atc_checkin_procedure": _clean(getattr(planning, "atc_checkin_procedure", "")),
         "atc_deviation_triggers": _clean(getattr(planning, "atc_deviation_triggers", "")),
+        "emergency_response_plan": _clean(getattr(planning, "emergency_response_plan", "")),
 
         # --- weather + crew discipline ---
         "max_wind_mph": getattr(planning, "max_wind_mph", None) or "",
@@ -363,6 +380,9 @@ DATA:
 {data}
 
 Paragraph 1: Describe the operation, location, dates/times, airspace class, altitude, aircraft, and general flight profile.
+- Describe maximum_planned_altitude_agl as "at or below the requested maximum altitude of [value] feet AGL and subject to any lower altitude limitation specified in the FAA authorization." Use the supplied value; never imply that the requested altitude is already authorized.
+- When controlled_airspace_only is true, state: "This application requests a controlled-airspace authorization under §107.41 and does not request relief from any other Part 107 requirement." Do not call the §107.41 authorization a waiver. Omit the no-other-relief statement when controlled_airspace_only is false.
+- Preserve user-entered descriptions of operating frequency or duration, including year-round language, in substance. Do not reinterpret, normalize, or remove them.
 
 Paragraph 2: Describe the safety posture using ONLY provided data.
 If present, include:
@@ -370,6 +390,9 @@ If present, include:
 - ATC coordination (atc_facility_name, atc_coordination_method, atc_checkin_procedure, atc_deviation_triggers)
 - Lost-link and flyaway (lost_link_behavior, rth_altitude_ft_agl, lost_link_actions, flyaway_actions)
 - Traffic abort/termination triggers ONLY if explicitly provided in the data (atc_deviation_triggers)
+- If uses_flight_tracking is Yes and flight_tracking_service is supplied, use that exact service name and state that it is supplemental situational awareness only and does not replace visual scanning, see-and-avoid responsibilities, or the RPIC's obligation to yield right of way to crewed aircraft. Never substitute another service name.
+- If emergency_response_plan contains an emergency ATC notification procedure but no routine ATC procedure is supplied, distinguish the two: "No routine ATC check-in or communication procedure is prescribed. User-defined emergency notification procedures are addressed in Section 9." Do not say that no direct ATC procedure exists.
+- Preserve emergency_response_plan and all user-entered ATC procedures exactly in substance.
 Do not speculate or add procedures that are not explicitly provided.
 """.strip()
 
@@ -458,7 +481,9 @@ def build_conops_section_prompt(*, application, planning, section) -> str:
     The Operation Summary is rendered from planning data and is not generated here.
     """
 
-    timeframe_labels = _labels_from_choices(planning.timeframe_codes(), TIMEFRAME_CHOICES)
+    timeframe_labels = _labels_from_choices(
+        getattr(planning, "timeframe", []) or [], TIMEFRAME_CHOICES
+    )
     purpose_labels = _labels_from_choices(getattr(planning, "purpose_operations", []) or [], PURPOSE_OPERATIONS_CHOICES)
     ground_labels = _labels_from_choices(getattr(planning, "ground_environment", []) or [], GROUND_ENVIRONMENT_CHOICES)
     procedure_labels = _labels_from_choices(getattr(planning, "prepared_procedures", []) or [], PREPARED_PROCEDURES_CHOICES)
@@ -470,6 +495,7 @@ def build_conops_section_prompt(*, application, planning, section) -> str:
     # data pack (keep it compact)
     data = {
         "operation_title": _clean(getattr(planning, "operation_title", "")),
+        "operation_description": _clean(getattr(planning, "operation_description", "")),
         "date_range": _date_range(planning),
         "timeframe": ", ".join(timeframe_labels),
         "frequency": _clean(getattr(planning, "frequency", "")),
@@ -487,7 +513,9 @@ def build_conops_section_prompt(*, application, planning, section) -> str:
 
         "aircraft": _clean(getattr(planning, "aircraft_display", lambda: "")()),
         "aircraft_count": _clean(getattr(planning, "aircraft_count", "")),
-        "proposed_agl": getattr(planning, "proposed_agl", None),
+        "maximum_planned_altitude_agl": getattr(
+            planning, "maximum_planned_altitude_agl", None
+        ),
         "max_groundspeed_mph": getattr(planning, "max_groundspeed_mph", None),
 
         "operation_area_type": _clean(getattr(planning, "operation_area_type", "")),
@@ -498,6 +526,8 @@ def build_conops_section_prompt(*, application, planning, section) -> str:
         "containment_notes": _clean(getattr(planning, "containment_notes", "")),
 
         "has_visual_observer": bool(getattr(planning, "has_visual_observer", False)),
+        "uses_flight_tracking": bool(getattr(planning, "uses_flight_tracking", False)),
+        "flight_tracking_service": _clean(getattr(planning, "flight_tracking_service", "")),
         "ground_environment": ", ".join(ground_labels),
         "estimated_crowd_size": _clean(getattr(planning, "estimated_crowd_size", "")),
 
@@ -507,6 +537,7 @@ def build_conops_section_prompt(*, application, planning, section) -> str:
         "atc_frequency": _clean(getattr(planning, "atc_frequency", "")),
         "atc_checkin_procedure": _clean(getattr(planning, "atc_checkin_procedure", "")),
         "atc_deviation_triggers": _clean(getattr(planning, "atc_deviation_triggers", "")),
+        "emergency_response_plan": _clean(getattr(planning, "emergency_response_plan", "")),
 
         "lost_link_behavior": _clean(getattr(planning, "lost_link_behavior", "")),
         "rth_altitude_ft_agl": getattr(planning, "rth_altitude_ft_agl", None),
@@ -567,6 +598,10 @@ Global rules:
 - No educational explanations.
 - Do not repeat facts that belong in the Operation Summary section.
 - Use ONLY the data below. If missing, omit.
+- Treat maximum_planned_altitude_agl as a requested maximum, not an authorized altitude. Say the aircraft will operate at or below that requested maximum and will not exceed any lower altitude limitation specified in the FAA authorization.
+- A named flight_tracking_service is supplemental situational awareness only; it does not replace visual scanning, see-and-avoid responsibilities, or the RPIC's obligation to yield right of way to crewed aircraft. Preserve the supplied service name exactly.
+- Do not say that no ATC communication procedure exists when emergency_response_plan contains an emergency ATC notification procedure. Distinguish the absence of routine check-in from user-defined emergency notification procedures.
+- Preserve user-entered operational facts, including year-round language and emergency/ATC procedures, exactly in substance.
 
 SECTION: {section.title}
 
@@ -992,4 +1027,3 @@ def _airport_haversine_nm(lat1, lon1, lat2, lon2) -> Decimal:
     return (kilometers * nautical_miles_per_km).quantize(
         Decimal("0.01")
     )
-

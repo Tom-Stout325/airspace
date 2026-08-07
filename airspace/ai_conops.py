@@ -311,15 +311,21 @@ FAA / REGULATORY GUARDRAILS FOR A STANDARD §107.41 REQUEST:
 - Describe maximum_planned_altitude_agl as the requested maximum altitude,
   never as an altitude already authorized. State that the operation remains
   subject to the altitude authorized by the FAA and will not exceed any lower
-  altitude limitation in the issued authorization. Always use the actual
-  numeric altitude supplied in the planning record.
+  altitude limitation in the issued authorization. In the Description of
+  Operations, say the aircraft will operate "at or below the requested maximum
+  altitude of [value] feet AGL and subject to any lower altitude limitation
+  specified in the FAA authorization." In Flight Envelope and Operating
+  Limitations, say flights will be conducted "at or below the requested maximum
+  altitude of [value] feet AGL and will not exceed any lower altitude limitation
+  specified in the FAA authorization." Always use the actual numeric altitude
+  supplied in the planning record.
 - Only when regulatory_context.controlled_airspace_only is true, state: "This
   application requests a controlled-airspace authorization under §107.41 and
   does not request relief from any other Part 107 requirement." Do not call a
   §107.41 controlled-airspace authorization a waiver.
 - When uses_flight_tracking is true, identify only the user-entered
-  flight_tracking_service when one is supplied. Describe that service as a
-  supplemental situational-awareness tool that does not replace visual
+  flight_tracking_service when one is supplied. State that the service is used
+  only for supplemental situational awareness and does not replace visual
   scanning, see-and-avoid responsibilities, or the RPIC's obligation to yield
   right of way to crewed aircraft. Never substitute or invent FlightAware or
   another service name.
@@ -329,6 +335,15 @@ FAA / REGULATORY GUARDRAILS FOR A STANDARD §107.41 REQUEST:
   persons/open-air assemblies unless a separately applicable Part 107
   compliance basis is documented in the planning record.
 - Never invent a separate operations-over-people waiver or approval.
+- Do not state that no direct ATC coordination or communication procedures are
+  prescribed when the planning record contains a user-entered emergency ATC
+  notification procedure. When there is no routine procedure, distinguish it
+  from emergency notification: "No routine ATC check-in or communication
+  procedure is prescribed. User-defined emergency notification procedures are
+  addressed in Section 9."
+- Preserve user-entered operating-frequency or duration language, including
+  year-round operations, exactly in substance. Do not normalize, reinterpret,
+  or remove it.
 
 WRITING GUIDANCE BY SECTION:
 - Operational Overview: Explain the user-entered mission purpose and requested
