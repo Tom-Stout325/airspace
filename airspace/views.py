@@ -130,9 +130,13 @@ def _invalidate_operation_conops(operation):
     for approval in operation.approvals.all():
         for application in approval.applications.all():
             application.conops_source_updated_at = None
+            application.description_is_complete = False
+            application.description_validated_at = None
             application.save(
                 update_fields=[
                     "conops_source_updated_at",
+                    "description_is_complete",
+                    "description_validated_at",
                     "updated_at",
                 ]
             )
@@ -168,8 +172,8 @@ def _approval_conops_state(approval):
         }
 
     sections = list(application.conops_sections.all())
-    total_count = len(sections)
-    complete_count = sum(
+    total_count = len(sections) + 1
+    complete_count = int(application.description_is_complete) + sum(
         1
         for section in sections
         if section.is_complete
@@ -765,10 +769,21 @@ def operation_conops_review(request, operation_pk, approval_pk):
             request.POST.get("locked_description") == "on"
             or description_changed
         )
+        application.description_is_complete = bool(
+            request.POST.get("description_is_complete") == "on"
+            and not description_changed
+        )
+        application.description_validated_at = (
+            timezone.now()
+            if application.description_is_complete
+            else None
+        )
         application.save(
             update_fields=[
                 "description",
                 "locked_description",
+                "description_is_complete",
+                "description_validated_at",
                 "updated_at",
             ]
         )
@@ -828,10 +843,10 @@ def operation_conops_review(request, operation_pk, approval_pk):
         )
 
     sections = ordered_conops_sections(application)
-    complete_count = sum(
+    complete_count = int(application.description_is_complete) + sum(
         1 for section in sections if section.is_complete
     )
-    total_count = len(sections)
+    total_count = len(sections) + 1
     review_percentage = (
         round((complete_count / total_count) * 100)
         if total_count
@@ -999,7 +1014,9 @@ def operation_faa_package_pdf(request, operation_pk, approval_pk):
             )
 
     all_sections_complete = bool(
-        sections and all(section.is_complete for section in sections)
+        application.description_is_complete
+        and sections
+        and all(section.is_complete for section in sections)
     )
     package_ready = bool(
         conops_generated and not conops_stale and all_sections_complete
@@ -1156,7 +1173,8 @@ def operation_conops_pdf(request, operation_pk, approval_pk):
             "generated_at": timezone.localtime(),
             "logo_uri": logo_uri,
             "all_sections_complete": bool(
-                sections
+                application.description_is_complete
+                and sections
                 and all(
                     section.is_complete
                     for section in sections
@@ -1411,4 +1429,3 @@ def nearest_airport_lookup(request):
             },
         }
     )
-

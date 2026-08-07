@@ -828,7 +828,9 @@ def save_conops_review(application, submitted_sections):
             submitted.get("locked")
             or content_changed
         )
-        section.is_complete = bool(submitted.get("is_complete"))
+        section.is_complete = bool(
+            submitted.get("is_complete") and not content_changed
+        )
         section.validated_at = (
             timezone.now()
             if section.is_complete

@@ -865,6 +865,8 @@ class ApprovalApplication(models.Model):
     description                = models.TextField(blank=True, default="", help_text=( "Concise Description of Operations intended for the FAA " "application form."),)
     status                     = models.CharField(max_length=20, choices=STATUS_CHOICES, default="draft",)
     locked_description         = models.BooleanField(default=False, help_text=("Protect the reviewed Description of Operations from AI " "regeneration."),)
+    description_is_complete    = models.BooleanField(default=False)
+    description_validated_at   = models.DateTimeField(null=True, blank=True)
     description_generated_at   = models.DateTimeField(null=True, blank=True,)
     ai_generation_model        = models.CharField(max_length=100, blank=True, default="",)
     ai_generated_at            = models.DateTimeField(null=True, blank=True,)

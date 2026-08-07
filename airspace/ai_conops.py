@@ -655,6 +655,8 @@ def generate_ai_conops(
                 package.description_of_operations.strip()
             )
             application.description_generated_at = generated_at
+            application.description_is_complete = False
+            application.description_validated_at = None
             if legacy_combined_description:
                 application.locked_description = False
                 application_update_fields.append(
@@ -664,6 +666,8 @@ def generate_ai_conops(
                 [
                     "description",
                     "description_generated_at",
+                    "description_is_complete",
+                    "description_validated_at",
                 ]
             )
 

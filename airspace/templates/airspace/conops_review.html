@@ -21,8 +21,11 @@
   .conops-section-header { padding: .9rem 1rem; }
   .conops-section-header h2 { margin: 0; font-size: 1.05rem; }
   .conops-section-body { padding: 1rem; }
-  .conops-textarea { min-height: 10rem; line-height: 1.5; }
-  .description-textarea { min-height: 11rem; line-height: 1.5; }
+  .conops-textarea,
+  .description-textarea {
+    line-height: 1.5;
+    resize: vertical;
+  }
   .conops-actions {
     position: sticky;
     bottom: 0;
@@ -54,7 +57,7 @@
       <div class="text-lg-end">
         <div class="h4 mb-0">{{ review_percentage }}%</div>
         <div class="small">
-          {{ complete_count }} of {{ total_count }} sections reviewed
+          {{ complete_count }} of {{ total_count }} items reviewed
         </div>
       </div>
     </div>
@@ -112,6 +115,19 @@
   <form method="post" novalidate>
     {% csrf_token %}
 
+    <div class="alert alert-info border-info shadow-sm mb-4" role="note">
+      <h2 class="h5 alert-heading fw-bold">
+        Review your CONOPS before submission
+      </h2>
+      <p class="mb-0">
+        Carefully read and edit each section below. When you are satisfied
+        with a section, check
+        <strong>Protect this section from regeneration</strong> and
+        <strong>Section reviewed and complete</strong>. Protected sections
+        will not be replaced if you regenerate the CONOPS with ChatGPT.
+      </p>
+    </div>
+
     <section class="conops-section mb-4" id="description-of-operations">
       <div class="conops-section-header">
         <h2>Description of Operations</h2>
@@ -126,31 +142,52 @@
           class="form-control description-textarea"
           id="description"
           name="description"
+          rows="15"
         >{{ application.description }}</textarea>
 
-        <div class="d-flex flex-column flex-md-row justify-content-between gap-2 mt-2">
-          <div class="form-check">
-            <input
-              class="form-check-input"
-              id="locked_description"
-              name="locked_description"
-              type="checkbox"
-              {% if application.locked_description %}checked{% endif %}
-            >
-            <label
-              class="form-check-label fw-semibold"
-              for="locked_description"
-            >
-              Protect description from regeneration
-            </label>
+        <div class="row g-3 mt-1">
+          <div class="col-12 col-md-6">
+            <div class="form-check">
+              <input
+                class="form-check-input"
+                id="locked_description"
+                name="locked_description"
+                type="checkbox"
+                {% if application.locked_description %}checked{% endif %}
+              >
+              <label
+                class="form-check-label fw-semibold"
+                for="locked_description"
+              >
+                Protect description from regeneration
+              </label>
+            </div>
           </div>
-          <div class="small text-muted">
+          <div class="col-12 col-md-6">
+            <div class="form-check">
+              <input
+                class="form-check-input"
+                id="description_is_complete"
+                name="description_is_complete"
+                type="checkbox"
+                {% if application.description_is_complete %}checked{% endif %}
+              >
+              <label
+                class="form-check-label fw-semibold"
+                for="description_is_complete"
+              >
+                Description reviewed and complete
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="small text-muted mt-3">
             <span id="description-count">0</span> characters
             {% if application.description_generated_at %}
               · Generated
               {{ application.description_generated_at|date:"M j, Y g:i A" }}
             {% endif %}
-          </div>
         </div>
       </div>
     </section>
@@ -180,6 +217,7 @@
             class="form-control conops-textarea"
             id="content_{{ section.pk }}"
             name="content_{{ section.pk }}"
+            rows="15"
           >{{ section.content }}</textarea>
 
           <div class="row g-3 mt-1">

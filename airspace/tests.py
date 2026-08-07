@@ -5,14 +5,21 @@ from tempfile import TemporaryDirectory
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
 from drones.models import Drone
 from pilot.models import PilotProfile
-from .ai_conops import _operation_payload, _system_prompt
+from .ai_conops import (
+    GeneratedConopsPackage,
+    GeneratedConopsSection,
+    _operation_payload,
+    _system_prompt,
+    generate_ai_conops,
+)
 from .conops import (
+    CONOPS_DEFINITIONS,
     _airspace_atc_coordination,
     _dates_location_airspace,
     _emergency_procedures,
@@ -25,6 +32,7 @@ from .forms import OperationsPlanningForm
 from .models import (
     Airport,
     ApprovalType,
+    ConopsSection,
     OperationAircraft,
     OperationApproval,
     OperationsPlanning,
@@ -518,6 +526,223 @@ class ControlledAirspaceConopsWordingTests(TestCase):
         )
         self.assertIn(expected_heading, rendered_pdf)
         self.assertNotIn(duplicate_heading, rendered_pdf)
+
+
+class ConopsReviewWorkflowTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="conops-review@example.com",
+            password="test-pass-123",
+        )
+        self.operation = OperationsPlanning.objects.create(
+            user=self.user,
+            operation_title="CONOPS review workflow",
+            start_date=date.today(),
+        )
+        self.approval_type = ApprovalType.objects.create(
+            code="controlled-airspace-review",
+            category="airspace",
+            regulation="§107.41",
+            name="Controlled Airspace Authorization",
+        )
+        self.approval = OperationApproval.objects.create(
+            operation=self.operation,
+            approval_type=self.approval_type,
+        )
+        self.application = get_or_create_application(
+            self.approval,
+            self.user,
+        )
+        self.application.description = "Saved Description of Operations."
+        self.application.save(update_fields=["description", "updated_at"])
+        self.sections = []
+        for definition in CONOPS_DEFINITIONS:
+            self.sections.append(
+                ConopsSection.objects.create(
+                    user=self.user,
+                    application=self.application,
+                    section_key=definition.key,
+                    title=definition.title,
+                    content=f"Saved content for {definition.title}.",
+                )
+            )
+        self.url = reverse(
+            "airspace:operation_conops_review",
+            kwargs={
+                "operation_pk": self.operation.pk,
+                "approval_pk": self.approval.pk,
+            },
+        )
+        self.client.force_login(self.user)
+
+    def _post_data(self, **extra):
+        data = {
+            "action": "save",
+            "description": self.application.description,
+        }
+        for section in self.sections:
+            data[f"content_{section.pk}"] = section.content
+        data.update(extra)
+        return data
+
+    def test_progress_includes_description_at_zero_partial_and_complete(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.context["complete_count"], 0)
+        self.assertEqual(response.context["total_count"], 10)
+        self.assertEqual(response.context["review_percentage"], 0)
+        self.assertContains(response, "0 of 10 items reviewed")
+
+        self.application.description_is_complete = True
+        self.application.save(
+            update_fields=["description_is_complete", "updated_at"]
+        )
+        ConopsSection.objects.filter(
+            pk__in=[section.pk for section in self.sections[:4]]
+        ).update(is_complete=True)
+
+        response = self.client.get(self.url)
+        self.assertEqual(response.context["complete_count"], 5)
+        self.assertEqual(response.context["total_count"], 10)
+        self.assertEqual(response.context["review_percentage"], 50)
+
+        ConopsSection.objects.filter(application=self.application).update(
+            is_complete=True
+        )
+        response = self.client.get(self.url)
+        self.assertEqual(response.context["complete_count"], 10)
+        self.assertEqual(response.context["review_percentage"], 100)
+        self.assertContains(response, "10 of 10 items reviewed")
+
+    def test_description_review_state_persists_independently_from_protection(self):
+        response = self.client.post(
+            self.url,
+            self._post_data(description_is_complete="on"),
+        )
+        self.assertRedirects(response, self.url)
+
+        self.application.refresh_from_db()
+        self.assertTrue(self.application.description_is_complete)
+        self.assertIsNotNone(self.application.description_validated_at)
+        self.assertFalse(self.application.locked_description)
+
+        response = self.client.post(
+            self.url,
+            self._post_data(locked_description="on"),
+        )
+        self.assertRedirects(response, self.url)
+
+        self.application.refresh_from_db()
+        self.assertTrue(self.application.locked_description)
+        self.assertFalse(self.application.description_is_complete)
+
+    def test_section_review_and_protection_remain_independent(self):
+        section = self.sections[0]
+        response = self.client.post(
+            self.url,
+            self._post_data(**{f"is_complete_{section.pk}": "on"}),
+        )
+        self.assertRedirects(response, self.url)
+
+        section.refresh_from_db()
+        self.assertTrue(section.is_complete)
+        self.assertFalse(section.locked)
+
+        response = self.client.post(
+            self.url,
+            self._post_data(**{f"locked_{section.pk}": "on"}),
+        )
+        self.assertRedirects(response, self.url)
+
+        section.refresh_from_db()
+        self.assertTrue(section.locked)
+        self.assertFalse(section.is_complete)
+
+    def test_substantive_edits_clear_reviewed_state(self):
+        section = self.sections[0]
+        self.application.description_is_complete = True
+        self.application.save(
+            update_fields=["description_is_complete", "updated_at"]
+        )
+        section.is_complete = True
+        section.save(update_fields=["is_complete", "updated_at"])
+
+        response = self.client.post(
+            self.url,
+            self._post_data(
+                description="Edited Description of Operations.",
+                description_is_complete="on",
+                **{
+                    f"content_{section.pk}": "Edited section content.",
+                    f"is_complete_{section.pk}": "on",
+                },
+            ),
+        )
+        self.assertRedirects(response, self.url)
+
+        self.application.refresh_from_db()
+        section.refresh_from_db()
+        self.assertFalse(self.application.description_is_complete)
+        self.assertFalse(section.is_complete)
+        self.assertTrue(self.application.locked_description)
+        self.assertTrue(section.locked)
+
+    def test_review_textareas_render_fifteen_rows(self):
+        response = self.client.get(self.url)
+
+        self.assertContains(response, 'id="description"')
+        self.assertContains(response, 'rows="15"', count=10)
+        self.assertContains(response, "resize: vertical")
+
+    @override_settings(
+        OPENAI_API_KEY="test-key",
+        OPENAI_TEXT_MODEL="test-model",
+    )
+    @patch("airspace.ai_conops._request_ai_document")
+    def test_regeneration_preserves_protected_content(self, request_document):
+        protected_section = self.sections[0]
+        protected_section.locked = True
+        protected_section.save(update_fields=["locked", "updated_at"])
+        self.application.locked_description = True
+        self.application.save(
+            update_fields=["locked_description", "updated_at"]
+        )
+
+        package = GeneratedConopsPackage(
+            description_of_operations="Regenerated description.",
+            sections=[
+                GeneratedConopsSection(
+                    key=definition.key,
+                    title=definition.title,
+                    content=f"Regenerated {definition.key}.",
+                )
+                for definition in CONOPS_DEFINITIONS
+            ],
+        )
+        request_document.return_value = (package, MagicMock(usage=None))
+
+        generate_ai_conops(
+            self.approval,
+            self.user,
+            regenerate_unlocked=True,
+        )
+
+        self.application.refresh_from_db()
+        protected_section.refresh_from_db()
+        unprotected_section = ConopsSection.objects.get(
+            pk=self.sections[1].pk
+        )
+        self.assertEqual(
+            self.application.description,
+            "Saved Description of Operations.",
+        )
+        self.assertEqual(
+            protected_section.content,
+            f"Saved content for {protected_section.title}.",
+        )
+        self.assertEqual(
+            unprotected_section.content,
+            f"Regenerated {unprotected_section.section_key}.",
+        )
 
 
 # ---------------------------------------------------------------------------
