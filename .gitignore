@@ -122,6 +122,7 @@ ehthumbs.db
 # -----------------------------------------------------------------------------
 AirSpace_invitation_patches/
 *.patch
+scripts/scripts.txt
 
 # Keep migrations under version control
 !**/migrations/

@@ -247,6 +247,8 @@ Do not hard-code production secrets or credentials as fallbacks.
 
 Do not commit generated collected static files, uploaded media, caches, archives, or virtual environments.
 
+Python bytecode and `__pycache__` directories are generated artifacts and must not be committed.
+
 Do not automatically delete files that are already tracked merely because they now match `.gitignore`.
 
 Treat cleanup of historically tracked artifacts as a separate deliberate task.
