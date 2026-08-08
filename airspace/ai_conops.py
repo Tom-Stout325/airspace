@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from datetime import date, datetime
 from decimal import Decimal
 from pathlib import PurePosixPath
@@ -224,6 +225,29 @@ def _operation_payload(
             ),
         },
         "operation": operation_data,
+        "operation_semantics": {
+            "launch_location": operation.launch_location,
+            "recovery_location": operation.recovery_location,
+            "operational_area_geometry": (
+                operation.get_operation_area_type_display()
+                if operation.operation_area_type
+                else ""
+            ),
+            "dronezone_requested_radius": (
+                operation.get_dronezone_radius_display()
+                if operation.dronezone_radius
+                else ""
+            ),
+            "operation_reference_coordinates": {
+                "latitude": _json_value(operation.location_latitude),
+                "longitude": _json_value(operation.location_longitude),
+                "meaning": (
+                    "Reference point for the overall operation; not a launch "
+                    "or recovery coordinate unless the planning record "
+                    "explicitly says so."
+                ),
+            },
+        },
         "pilot": {
             "name": pilot_name,
             "faa_certificate_number": pilot_certificate,
@@ -323,6 +347,18 @@ FAA / REGULATORY GUARDRAILS FOR A STANDARD §107.41 REQUEST:
   altitude of [value] feet AGL and will not exceed any lower altitude limitation
   specified in the FAA authorization." Always use the actual numeric altitude
   supplied in the planning record.
+- Treat operation_semantics.dronezone_requested_radius as required planning
+  data and reproduce its actual stored display value. "Blanket Area / Wide
+  Area" is not a numeric radius; never convert it to 0.5 NM or any other
+  distance. A numeric selection such as "1/2 NM" may be stated only when that
+  is the stored selection.
+- Preserve operation_semantics.operational_area_geometry exactly. When it is
+  "Multiple sites", do not rewrite the operation as one radius around a single
+  launch site.
+- When launch_location or recovery_location is "Varies", preserve that value.
+  operation_reference_coordinates identify the overall operation reference
+  point and must not be called launch-site or recovery-site coordinates unless
+  a separate source field explicitly establishes that fact.
 - Only when regulatory_context.controlled_airspace_only is true, state: "This
   application requests a controlled-airspace authorization under §107.41 and
   does not request relief from any other Part 107 requirement." Do not call a
@@ -518,6 +554,69 @@ def _validate_package(
     return returned
 
 
+def _validate_geometry_source_fidelity(
+    package: GeneratedConopsPackage,
+    operation,
+) -> None:
+    generated_text = "\n".join(
+        [package.description_of_operations]
+        + [section.content for section in package.sections]
+    )
+    normalized = generated_text.casefold()
+
+    radius = (
+        operation.get_dronezone_radius_display()
+        if operation.dronezone_radius
+        else ""
+    )
+    if radius and radius.casefold() not in normalized:
+        raise OpenAIConopsError(
+            "The generated CONOPS did not preserve the stored DroneZone "
+            "Requested Radius. No reviewed content was changed."
+        )
+
+    if operation.dronezone_radius == "blanket_wide_area" and re.search(
+        r"\b\d+(?:\.\d+)?\s*(?:nautical\s*miles?|nm)\s+radius\b",
+        normalized,
+    ):
+        raise OpenAIConopsError(
+            "The generated CONOPS invented a numeric radius for a Blanket "
+            "Area / Wide Area request. No reviewed content was changed."
+        )
+
+    if (
+        operation.operation_area_type == "multiple_sites"
+        and "multiple sites" not in normalized
+    ):
+        raise OpenAIConopsError(
+            "The generated CONOPS did not preserve the Multiple Sites "
+            "operational-area geometry. No reviewed content was changed."
+        )
+
+    for label, value in (
+        ("launch", operation.launch_location),
+        ("recovery", operation.recovery_location),
+    ):
+        if (value or "").strip().casefold() == "varies" and not re.search(
+            rf"\b{label}\b[^.\n]{{0,80}}\bvaries\b",
+            normalized,
+        ):
+            raise OpenAIConopsError(
+                f"The generated CONOPS did not preserve that the {label} "
+                "location varies. No reviewed content was changed."
+            )
+
+    if re.search(
+        r"\blaunch (?:site|location)\b[^.\n]{0,50}"
+        r"\b(?:at latitude|coordinates?)\b",
+        normalized,
+    ):
+        raise OpenAIConopsError(
+            "The generated CONOPS treated operation reference coordinates "
+            "as launch coordinates. No reviewed content was changed."
+        )
+
+
 def _record_generation_error(
     approval: OperationApproval,
     user,
@@ -626,6 +725,10 @@ def generate_ai_conops(
         returned = _validate_package(
             package,
             required_exact_phrases=required_exact_phrases,
+        )
+        _validate_geometry_source_fidelity(
+            package,
+            approval.operation,
         )
     except (
         OpenAIConopsError,

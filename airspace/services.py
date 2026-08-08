@@ -161,6 +161,58 @@ def _date_range(planning: Any) -> str:
     return f"{start}"
 
 
+def _validate_generated_geometry_text(
+    text: str,
+    planning: Any,
+    *,
+    require_planning_values: bool,
+) -> None:
+    normalized = (text or "").casefold()
+    radius = (
+        planning.get_dronezone_radius_display()
+        if getattr(planning, "dronezone_radius", "")
+        else ""
+    )
+
+    if (
+        require_planning_values
+        and radius
+        and radius.casefold() not in normalized
+    ):
+        raise RuntimeError(
+            "Generated text did not preserve the stored DroneZone Requested Radius."
+        )
+
+    if (
+        getattr(planning, "dronezone_radius", "") == "blanket_wide_area"
+        and re.search(
+            r"\b\d+(?:\.\d+)?\s*(?:nautical\s*miles?|nm)\s+radius\b",
+            normalized,
+        )
+    ):
+        raise RuntimeError(
+            "Generated text invented a numeric radius for a Blanket Area / Wide Area request."
+        )
+
+    if (
+        require_planning_values
+        and getattr(planning, "operation_area_type", "") == "multiple_sites"
+        and "multiple sites" not in normalized
+    ):
+        raise RuntimeError(
+            "Generated text did not preserve the Multiple Sites geometry."
+        )
+
+    if re.search(
+        r"\blaunch (?:site|location)\b[^.\n]{0,50}"
+        r"\b(?:at latitude|coordinates?)\b",
+        normalized,
+    ):
+        raise RuntimeError(
+            "Generated text treated operation reference coordinates as launch coordinates."
+        )
+
+
 # ==========================================================
 # CONTROLLED AIRSPACE REQUIREMENTS (FAA WAIVER DESCRIPTION)
 # ==========================================================
@@ -301,6 +353,10 @@ def build_waiver_description_prompt(planning) -> str:
         "venue_address_compiled": address,
         "location_latitude": getattr(planning, "location_latitude", None) or "",
         "location_longitude": getattr(planning, "location_longitude", None) or "",
+        "coordinate_meaning": (
+            "Operation reference coordinates; not launch/recovery coordinates "
+            "unless explicitly identified as such."
+        ),
         "airspace_class": _clean(getattr(planning, "airspace_class", "")),
         "location_radius": _clean(getattr(planning, "location_radius", "")),
         "nearest_airport": _clean(getattr(planning, "nearest_airport", "")),
@@ -336,6 +392,18 @@ def build_waiver_description_prompt(planning) -> str:
 
         # --- FAA specificity (controlled airspace waiver posture) ---
         "operation_area_type": _clean(getattr(planning, "operation_area_type", "")),
+        "operation_area_geometry": (
+            planning.get_operation_area_type_display()
+            if getattr(planning, "operation_area_type", "")
+            else ""
+        ),
+        "launch_location": _clean(getattr(planning, "launch_location", "")),
+        "recovery_location": _clean(getattr(planning, "recovery_location", "")),
+        "dronezone_requested_radius": (
+            planning.get_dronezone_radius_display()
+            if getattr(planning, "dronezone_radius", "")
+            else ""
+        ),
         "containment_method": _clean(getattr(planning, "containment_method", "")),
         "containment_notes": _clean(getattr(planning, "containment_notes", "")),
         "corridor_length_ft": getattr(planning, "corridor_length_ft", None) or "",
@@ -383,6 +451,8 @@ Paragraph 1: Describe the operation, location, dates/times, airspace class, alti
 - Describe maximum_planned_altitude_agl as "at or below the requested maximum altitude of [value] feet AGL and subject to any lower altitude limitation specified in the FAA authorization." Use the supplied value; never imply that the requested altitude is already authorized.
 - When controlled_airspace_only is true, state: "This application requests a controlled-airspace authorization under §107.41 and does not request relief from any other Part 107 requirement." Do not call the §107.41 authorization a waiver. Omit the no-other-relief statement when controlled_airspace_only is false.
 - Preserve user-entered descriptions of operating frequency or duration, including year-round language, in substance. Do not reinterpret, normalize, or remove them.
+- Use the exact dronezone_requested_radius. Blanket Area / Wide Area is not a numeric radius and must never become 0.5 NM or another distance.
+- Preserve operation_area_geometry, launch_location, and recovery_location. If launch/recovery is Varies, do not treat the operation reference coordinates as launch/recovery coordinates.
 
 Paragraph 2: Describe the safety posture using ONLY provided data.
 If present, include:
@@ -416,6 +486,11 @@ def generate_waiver_description_text(planning, *, user, model=None) -> str:
     result = (response.output_text or "").strip()
     if not result:
         raise RuntimeError("OpenAI response.output_text was empty.")
+    _validate_generated_geometry_text(
+        result,
+        planning,
+        require_planning_values=True,
+    )
     return result
 
 
@@ -510,6 +585,10 @@ def build_conops_section_prompt(*, application, planning, section) -> str:
         "airspace_class": _clean(getattr(planning, "airspace_class", "")),
         "nearest_airport": f"{airport_icao} – {airport_name}".strip(" –"),
         "distance_to_airport_nm": getattr(planning, "distance_to_airport_nm", None),
+        "coordinate_meaning": (
+            "Operation reference coordinates; not launch/recovery coordinates "
+            "unless explicitly identified as such."
+        ),
 
         "aircraft": _clean(getattr(planning, "aircraft_display", lambda: "")()),
         "aircraft_count": _clean(getattr(planning, "aircraft_count", "")),
@@ -519,6 +598,18 @@ def build_conops_section_prompt(*, application, planning, section) -> str:
         "max_groundspeed_mph": getattr(planning, "max_groundspeed_mph", None),
 
         "operation_area_type": _clean(getattr(planning, "operation_area_type", "")),
+        "operation_area_geometry": (
+            planning.get_operation_area_type_display()
+            if getattr(planning, "operation_area_type", "")
+            else ""
+        ),
+        "launch_location": _clean(getattr(planning, "launch_location", "")),
+        "recovery_location": _clean(getattr(planning, "recovery_location", "")),
+        "dronezone_requested_radius": (
+            planning.get_dronezone_radius_display()
+            if getattr(planning, "dronezone_radius", "")
+            else ""
+        ),
         "location_radius": _clean(getattr(planning, "location_radius", "")),
         "corridor_length_ft": getattr(planning, "corridor_length_ft", None),
         "corridor_width_ft": getattr(planning, "corridor_width_ft", None),
@@ -602,6 +693,8 @@ Global rules:
 - A named flight_tracking_service is supplemental situational awareness only; it does not replace visual scanning, see-and-avoid responsibilities, or the RPIC's obligation to yield right of way to crewed aircraft. Preserve the supplied service name exactly.
 - Do not say that no ATC communication procedure exists when emergency_response_plan contains an emergency ATC notification procedure. Distinguish the absence of routine check-in from user-defined emergency notification procedures.
 - Preserve user-entered operational facts, including year-round language and emergency/ATC procedures, exactly in substance.
+- Preserve dronezone_requested_radius and operation_area_geometry exactly. Blanket Area / Wide Area must never be converted to a numeric radius.
+- If launch_location or recovery_location is Varies, preserve that meaning and do not describe operation reference coordinates as launch/recovery coordinates.
 
 SECTION: {section.title}
 
@@ -748,6 +841,12 @@ def generate_conops_section_text(*, application, section, user, model=None) -> s
     result = (response.output_text or "").strip()
     if not result:
         raise RuntimeError("OpenAI response.output_text was empty.")
+
+    _validate_generated_geometry_text(
+        result,
+        planning,
+        require_planning_values=False,
+    )
 
     section.content = result
     section.generated_at = timezone.now()

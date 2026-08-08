@@ -20,6 +20,7 @@ from .ai_conops import (
     OpenAIConopsError,
     _operation_payload,
     _system_prompt,
+    _validate_geometry_source_fidelity,
     _validate_package,
     generate_ai_conops,
 )
@@ -42,7 +43,12 @@ from .models import (
     OperationApproval,
     OperationsPlanning,
 )
-from .services import build_waiver_description_prompt, search_openstreetmap_address
+from .services import (
+    _validate_generated_geometry_text,
+    build_conops_section_prompt,
+    build_waiver_description_prompt,
+    search_openstreetmap_address,
+)
 from .views import _operation_timezone_display, _submission_workflow_steps
 
 User = get_user_model()
@@ -531,6 +537,109 @@ class ControlledAirspaceConopsWordingTests(TestCase):
             _validate_package(
                 expanded,
                 required_exact_phrases=(procedure,),
+            )
+
+    def _geometry_package(self, text):
+        return GeneratedConopsPackage(
+            description_of_operations=text,
+            sections=[
+                GeneratedConopsSection(
+                    key=definition.key,
+                    title=definition.title,
+                    content=f"Content for {definition.key}.",
+                )
+                for definition in CONOPS_DEFINITIONS
+            ],
+        )
+
+    def test_numeric_dronezone_radius_is_supplied_and_preserved(self):
+        self.operation.dronezone_radius = "0.5_nm"
+        self.operation.save(update_fields=["dronezone_radius"])
+
+        payload = _operation_payload(self.approval)
+        self.assertEqual(
+            payload["operation_semantics"]["dronezone_requested_radius"],
+            "1/2 NM",
+        )
+        _validate_geometry_source_fidelity(
+            self._geometry_package("The DroneZone Requested Radius is 1/2 NM."),
+            self.operation,
+        )
+
+    def test_blanket_multiple_sites_and_varies_are_semantic_payload_values(self):
+        self.operation.dronezone_radius = "blanket_wide_area"
+        self.operation.operation_area_type = "multiple_sites"
+        self.operation.launch_location = "Varies"
+        self.operation.recovery_location = "Varies"
+        self.operation.location_latitude = "36.271187"
+        self.operation.location_longitude = "-115.009416"
+        self.operation.save()
+
+        payload = _operation_payload(self.approval)
+        semantics = payload["operation_semantics"]
+        self.assertEqual(
+            semantics["dronezone_requested_radius"],
+            "Blanket Area / Wide Area",
+        )
+        self.assertEqual(semantics["operational_area_geometry"], "Multiple sites")
+        self.assertEqual(semantics["launch_location"], "Varies")
+        self.assertEqual(semantics["recovery_location"], "Varies")
+        self.assertIn(
+            "not a launch or recovery coordinate",
+            semantics["operation_reference_coordinates"]["meaning"],
+        )
+
+        description_prompt = build_waiver_description_prompt(self.operation)
+        section_prompt = build_conops_section_prompt(
+            application=MagicMock(),
+            planning=self.operation,
+            section=MagicMock(
+                section_key="operational_area_containment",
+                title="Operational Area & Containment",
+            ),
+        )
+        for prompt in (description_prompt, section_prompt):
+            self.assertIn("'dronezone_requested_radius': 'Blanket Area / Wide Area'", prompt)
+            self.assertIn("'operation_area_geometry': 'Multiple sites'", prompt)
+            self.assertIn("'launch_location': 'Varies'", prompt)
+            self.assertIn("Operation reference coordinates", prompt)
+
+    def test_blanket_radius_rejects_numeric_radius_and_launch_coordinate_rewrite(self):
+        self.operation.dronezone_radius = "blanket_wide_area"
+        self.operation.operation_area_type = "multiple_sites"
+        self.operation.launch_location = "Varies"
+        self.operation.recovery_location = "Varies"
+        self.operation.save()
+        valid = (
+            "The DroneZone Requested Radius is Blanket Area / Wide Area for "
+            "Multiple sites. The launch location Varies and the recovery "
+            "location Varies. The coordinates are operation reference "
+            "coordinates."
+        )
+
+        _validate_geometry_source_fidelity(
+            self._geometry_package(valid),
+            self.operation,
+        )
+        _validate_generated_geometry_text(
+            valid,
+            self.operation,
+            require_planning_values=True,
+        )
+
+        with self.assertRaises(OpenAIConopsError):
+            _validate_geometry_source_fidelity(
+                self._geometry_package(
+                    valid + " Flights use an authorized 0.5 nautical mile radius."
+                ),
+                self.operation,
+            )
+        with self.assertRaises(OpenAIConopsError):
+            _validate_geometry_source_fidelity(
+                self._geometry_package(
+                    valid + " The launch site is at latitude 36.271187."
+                ),
+                self.operation,
             )
 
     def test_conops_headings_render_regulation_only_once(self):
