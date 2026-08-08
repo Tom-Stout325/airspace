@@ -716,7 +716,7 @@ def operation_planning_pdf(request, pk):
     generated_at = timezone.localtime()
     completion_sections = operation.completion_sections()
 
-    logo_path = finders.find("images/AirSpace_logo.png")
+    logo_path = finders.find("images/AirSpace_Logo.png")
     logo_uri = ""
     if logo_path:
         logo_uri = Path(logo_path).resolve().as_uri()
@@ -1217,7 +1217,7 @@ def operation_application_worksheet_pdf(request, operation_pk, approval_pk):
     else:
         nearest_airport_label = operation.nearest_airport or ""
 
-    logo_path = finders.find("images/AirSpace_logo.png")
+    logo_path = finders.find("images/AirSpace_Logo.png")
     if not logo_path:
         logo_path = finders.find("images/airspace-logo.png")
     logo_uri = Path(logo_path).resolve().as_uri() if logo_path else ""
@@ -1315,7 +1315,7 @@ def operation_conops_pdf(request, operation_pk, approval_pk):
             approval_pk=approval.pk,
         )
 
-    logo_path = finders.find("images/AirSpace_logo.png")
+    logo_path = finders.find("images/AirSpace_Logo.png")
     if not logo_path:
         logo_path = finders.find("images/airspace-logo.png")
     logo_uri = (
