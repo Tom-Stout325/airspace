@@ -12,12 +12,6 @@ env_file = BASE_DIR / ".env"
 if env_file.exists():
     environ.Env.read_env(env_file)
     
-
-# Fallback prevents crash if .env is missing
-# SECRET_KEY = env(
-#     "SECRET_KEY",
-#     default="x9@7!p4#k2^m8&z1$q6*w3!n5%r8@t2^y4#u7"
-# )
 SECRET_KEY = env("SECRET_KEY")
 
 DEBUG = env("DEBUG")
