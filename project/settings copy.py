@@ -108,20 +108,10 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-STATICFILES_DIRS = [ BASE_DIR / "static" ] if (BASE_DIR / "static").exists() else []
+STATICFILES_DIRS = [BASE_DIR / 'static'] if (BASE_DIR / 'static').exists() else []
 
-STORAGES = {
-    "default": {
-        "BACKEND": "django.core.files.storage.FileSystemStorage",
-    },
-    "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
-    },
-}
-
-MEDIA_URL = "/media/"
-MEDIA_ROOT = BASE_DIR / "media"
-
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 AUTH_USER_MODEL = 'accounts.User'
@@ -160,15 +150,9 @@ if USE_S3:
             'OPTIONS': {'location': 'static'},
         },
     }
-    STATIC_URL = (
-        f"https://{AWS_STORAGE_BUCKET_NAME}."
-        f"s3.{AWS_S3_REGION_NAME}.amazonaws.com/static/"
-    )
+    STATIC_URL = f"https://{{AWS_STORAGE_BUCKET_NAME}}.s3.{{AWS_S3_REGION_NAME}}.amazonaws.com/static/"
+    MEDIA_URL = f"https://{{AWS_STORAGE_BUCKET_NAME}}.s3.{{AWS_S3_REGION_NAME}}.amazonaws.com/media/"
 
-    MEDIA_URL = (
-        f"https://{AWS_STORAGE_BUCKET_NAME}."
-        f"s3.{AWS_S3_REGION_NAME}.amazonaws.com/media/"
-    )
 # Invitation-only registration
 INVITATION_EXPIRY_HOURS = env.int('INVITATION_EXPIRY_HOURS', default=72)
 
@@ -177,14 +161,4 @@ NOMINATIM_USER_AGENT = (
     "AirSpace/1.0 (contact: tom@tom-stout.com)"
 )
 
-NOMINATIM_REFERER = "https://airspace.12bytes.net/"
-
-if not DEBUG:
-    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
-    SECURE_SSL_REDIRECT = True
-
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
-
-    SECURE_CONTENT_TYPE_NOSNIFF = True
-    X_FRAME_OPTIONS = "DENY"
+NOMINATIM_REFERER = "https://your-airspace-domain.com/"
