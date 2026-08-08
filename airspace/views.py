@@ -2,6 +2,10 @@ from django.contrib import messages
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
+import base64
+from html import escape
+from io import BytesIO
+import mimetypes
 from pathlib import Path
 
 from django.db.models import Prefetch
@@ -14,6 +18,7 @@ from django.utils import timezone
 from django.utils.text import slugify
 from django.contrib.staticfiles import finders
 from django.views.generic import DeleteView, ListView
+from pypdf import PdfReader, PdfWriter
 from weasyprint import HTML
 
 from .forms import (
@@ -231,6 +236,49 @@ def _approval_conops_state(approval):
     }
 
 
+def _approval_is_submitted(approval):
+    submitted_statuses = {
+        "submitted",
+        "faa_review",
+        "additional_information",
+        "approved",
+        "denied",
+        "expired",
+        "withdrawn",
+    }
+    return bool(
+        approval.status in submitted_statuses
+        or approval.faa_tracking_number
+        or approval.submitted_at
+    )
+
+
+def _submission_workflow_steps(
+    *, planning_complete, conops_generated, conops_stale,
+    review_complete, submitted
+):
+    generated_current = bool(conops_generated and not conops_stale)
+    states = [
+        ("Complete Planning Documents", planning_complete),
+        ("Generate CONOPS", generated_current),
+        ("Review & Approve CONOPS", review_complete),
+        ("Submit Application", submitted),
+    ]
+    current_assigned = False
+    steps = []
+    for title, complete in states:
+        current = bool(not complete and not current_assigned)
+        current_assigned = current_assigned or current
+        steps.append(
+            {
+                "title": title,
+                "complete": bool(complete),
+                "current": current,
+            }
+        )
+    return steps
+
+
 def _operation_workflow_context(operation):
     approvals = list(operation.approvals.all())
     planning_complete = (
@@ -257,31 +305,14 @@ def _operation_workflow_context(operation):
         for item in approval_states
     )
 
-    submitted_statuses = {
-        "submitted",
-        "faa_review",
-        "additional_information",
-        "approved",
-        "denied",
-        "expired",
-        "withdrawn",
-    }
-
-    def approval_is_submitted(approval):
-        return bool(
-            approval.status in submitted_statuses
-            or approval.faa_tracking_number
-            or approval.submitted_at
-        )
-
     any_submitted = any(
-        approval_is_submitted(item["approval"])
+        _approval_is_submitted(item["approval"])
         for item in approval_states
     )
     all_submitted = (
         bool(approval_states)
         and all(
-            approval_is_submitted(item["approval"])
+            _approval_is_submitted(item["approval"])
             for item in approval_states
         )
     )
@@ -472,7 +503,7 @@ def _operation_workflow_context(operation):
         if next_action is None:
             for item in approval_states:
                 approval = item["approval"]
-                if not approval_is_submitted(approval):
+                if not _approval_is_submitted(approval):
                     next_approval = approval
                     next_action = {
                         "title": (
@@ -548,6 +579,18 @@ def _operation_workflow_context(operation):
         if step["complete"]
     )
 
+    all_conops_generated = bool(approval_states) and all(
+        item["conops"]["generated"]
+        for item in approval_states
+    )
+    submission_workflow_steps = _submission_workflow_steps(
+        planning_complete=planning_complete,
+        conops_generated=all_conops_generated,
+        conops_stale=any_conops_stale,
+        review_complete=all_conops_complete,
+        submitted=all_submitted,
+    )
+
     return {
         "approval_workflow_states": approval_states,
         "workflow_steps": workflow_steps,
@@ -562,6 +605,7 @@ def _operation_workflow_context(operation):
         "all_approved": all_approved,
         "next_action": next_action,
         "next_approval": next_approval,
+        "submission_workflow_steps": submission_workflow_steps,
     }
 
 
@@ -852,6 +896,14 @@ def operation_conops_review(request, operation_pk, approval_pk):
         if total_count
         else 0
     )
+    conops_state = _approval_conops_state(approval)
+    submission_workflow_steps = _submission_workflow_steps(
+        planning_complete=(operation.completion_percentage == 100),
+        conops_generated=conops_state["generated"],
+        conops_stale=conops_state["stale"],
+        review_complete=conops_state["complete"],
+        submitted=_approval_is_submitted(approval),
+    )
 
     return render(
         request,
@@ -864,15 +916,15 @@ def operation_conops_review(request, operation_pk, approval_pk):
             "complete_count": complete_count,
             "total_count": total_count,
             "review_percentage": review_percentage,
+            "review_ready": conops_state["complete"],
+            "submission_workflow_steps": submission_workflow_steps,
             "openai_configured": openai_is_configured(),
-            "conops_is_stale": (
-                _approval_conops_state(approval)["stale"]
-            ),
+            "conops_is_stale": conops_state["stale"],
         },
     )
 
 
-# AIRSPACE_FAA_APPLICATION_PACKAGE_V1
+# AIRSPACE_DRONEZONE_APPLICATION_WORKSHEET_V1
 def _decimal_coordinate_to_dms(value, positive, negative):
     if value is None:
         return None
@@ -912,6 +964,103 @@ def _display_model_choice(instance, field_name):
     return getattr(instance, field_name, "") or ""
 
 
+def _operation_timezone_display(operation):
+    labels = {
+        "SST": "Samoa Time",
+        "HAST": "Hawaii-Aleutian Time",
+        "AKST": "Alaska Time (AT)",
+        "PST": "Pacific Time (PT)",
+        "MST": "Mountain Time (MT)",
+        "CST": "Central Time (CT)",
+        "EST": "Eastern Time (ET)",
+        "AST": "Atlantic Time (AT)",
+        "CHST": "Chamorro Time (ChST)",
+    }
+    value = operation.local_time_zone or ""
+    return labels.get(value, _display_model_choice(operation, "local_time_zone"))
+
+
+def _operation_map_data(operation):
+    field = operation.operation_map
+    if not field:
+        return {"available": False, "is_pdf": False, "image_uri": "", "bytes": b""}
+
+    field.open("rb")
+    try:
+        content = field.read()
+    finally:
+        field.close()
+
+    suffix = Path(field.name or "").suffix.lower()
+    if suffix == ".pdf":
+        return {"available": True, "is_pdf": True, "image_uri": "", "bytes": content}
+
+    mime_type = mimetypes.guess_type(field.name or "")[0] or "application/octet-stream"
+    image_uri = (
+        f"data:{mime_type};base64,"
+        f"{base64.b64encode(content).decode('ascii')}"
+    )
+    return {"available": True, "is_pdf": False, "image_uri": image_uri, "bytes": content}
+
+
+def _conops_page_overlay(*, page_number, total_pages, title, appendix=False):
+    appendix_label = (
+        '<div class="appendix">Appendix A — Operations Area Map</div>'
+        if appendix
+        else ""
+    )
+    html = f"""
+        <style>
+          @page {{ size: Letter; margin: 0; }}
+          body {{ margin: 0; font-family: Arial, Helvetica, sans-serif; }}
+          .appendix {{
+            position: fixed; top: .18in; left: .22in;
+            padding: 4px 7px; background: white; color: SteelBlue;
+            border: 1px solid SteelBlue; font-size: 10pt; font-weight: bold;
+          }}
+          .footer {{
+            position: fixed; right: .25in; bottom: .18in; left: .25in;
+            display: flex; justify-content: space-between;
+            color: #667; font-size: 8pt;
+          }}
+        </style>
+        {appendix_label}
+        <div class="footer">
+          <span>AirSpace CONOPS</span>
+          <span>{escape(title)}</span>
+          <span>Page {page_number} of {total_pages}</span>
+        </div>
+    """
+    return HTML(string=html).write_pdf()
+
+
+def _finalize_conops_pdf(document_pdf, *, title, map_pdf=b""):
+    writer = PdfWriter()
+    writer.append(BytesIO(document_pdf))
+    first_map_page = len(writer.pages) if map_pdf else None
+    if map_pdf:
+        writer.append(BytesIO(map_pdf))
+
+    total_pages = len(writer.pages)
+    for index, page in enumerate(writer.pages):
+        overlay_pdf = _conops_page_overlay(
+            page_number=index + 1,
+            total_pages=total_pages,
+            title=title,
+            appendix=(index == first_map_page),
+        )
+        overlay_page = PdfReader(BytesIO(overlay_pdf)).pages[0]
+        overlay_page.scale_to(
+            float(page.mediabox.width),
+            float(page.mediabox.height),
+        )
+        page.merge_page(overlay_page)
+
+    output = BytesIO()
+    writer.write(output)
+    return output.getvalue()
+
+
 def _relevant_existing_waivers(user, current_approval):
     candidates = (
         OperationApproval.objects
@@ -941,7 +1090,7 @@ def _relevant_existing_waivers(user, current_approval):
 
 @login_required
 @require_GET
-def operation_faa_package_pdf(request, operation_pk, approval_pk):
+def operation_application_worksheet_pdf(request, operation_pk, approval_pk):
     operation = get_object_or_404(
         OperationsPlanning.objects.select_related(
             "pilot_profile",
@@ -982,7 +1131,7 @@ def operation_faa_package_pdf(request, operation_pk, approval_pk):
     if not application.description or not sections:
         messages.warning(
             request,
-            "Generate the Description of Operations and CONOPS before creating the FAA Application Package.",
+            "Generate the Description of Operations before creating the application worksheet.",
         )
         return redirect(
             "airspace:operation_conops_review",
@@ -1076,7 +1225,7 @@ def operation_faa_package_pdf(request, operation_pk, approval_pk):
         "responsible_party": responsible_party,
         "timeframe_options": timeframe_options,
         "frequency_display": _display_model_choice(operation, "frequency"),
-        "local_time_zone_display": _display_model_choice(operation, "local_time_zone"),
+        "local_time_zone_display": _operation_timezone_display(operation),
         "dronezone_radius_display": _display_model_choice(operation, "dronezone_radius"),
         "airspace_class_display": _display_model_choice(operation, "airspace_class"),
         "latitude_dms": latitude_dms,
@@ -1100,7 +1249,7 @@ def operation_faa_package_pdf(request, operation_pk, approval_pk):
     }
 
     html_string = render_to_string(
-        "airspace/pdf/faa_application_package.html",
+        "airspace/pdf/application_worksheet.html",
         context,
         request=request,
     )
@@ -1111,7 +1260,7 @@ def operation_faa_package_pdf(request, operation_pk, approval_pk):
 
     filename = (
         f"{slugify(operation.operation_title) or 'operation'}"
-        "-faa-application-package.pdf"
+        "-dronezone-application-worksheet.pdf"
     )
     response = HttpResponse(pdf_bytes, content_type="application/pdf")
     disposition = "attachment" if request.GET.get("download") == "1" else "inline"
@@ -1124,7 +1273,7 @@ def operation_faa_package_pdf(request, operation_pk, approval_pk):
 @require_GET
 def operation_conops_pdf(request, operation_pk, approval_pk):
     operation = get_object_or_404(
-        OperationsPlanning,
+        OperationsPlanning.objects.select_related("user"),
         pk=operation_pk,
         user=request.user,
     )
@@ -1162,6 +1311,7 @@ def operation_conops_pdf(request, operation_pk, approval_pk):
         if logo_path
         else ""
     )
+    operation_map = _operation_map_data(operation)
 
     html_string = render_to_string(
         "airspace/pdf/conops_pdf.html",
@@ -1180,6 +1330,9 @@ def operation_conops_pdf(request, operation_pk, approval_pk):
                     for section in sections
                 )
             ),
+            "operation_map_available": operation_map["available"],
+            "operation_map_is_pdf": operation_map["is_pdf"],
+            "operation_map_image_uri": operation_map["image_uri"],
         },
         request=request,
     )
@@ -1188,6 +1341,11 @@ def operation_conops_pdf(request, operation_pk, approval_pk):
         string=html_string,
         base_url=request.build_absolute_uri("/"),
     ).write_pdf()
+    pdf_bytes = _finalize_conops_pdf(
+        pdf_bytes,
+        title=operation.operation_title,
+        map_pdf=(operation_map["bytes"] if operation_map["is_pdf"] else b""),
+    )
 
     filename = (
         f"{slugify(operation.operation_title) or 'operation'}"

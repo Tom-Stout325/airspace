@@ -223,7 +223,7 @@ class OperationsPlanningForm(forms.ModelForm):
             "operation_area_type": "Choose the shape that best describes the planned operating area. The exact boundary will later be defined on a map.",
             "operation_area_description": "Describe the lateral boundaries using roads, buildings, property lines, venue features, or other recognizable references.",
             "operation_map": (
-                "Upload the annotated map that will support the FAA planning package. Use the exact operating location rather than relying only on a facility mailing address."
+                "Upload the annotated map that will be included with the standalone CONOPS. Use the exact operating location rather than relying only on a facility mailing address."
             ),
             "operation_map_notes": (
                 "Optional: identify what the colors, lines, labels, or shaded areas on the uploaded map represent."

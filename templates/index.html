@@ -10,75 +10,33 @@
         {% block title %}AirSpace Waiver App{% endblock %}
     </title>
 
-    <meta
-        name="description"
-        content="{% block meta_description %}AirSpace helps drone pilots organize pilot information, prepare FAA airspace waiver applications, build CONOPS documents, and manage waiver records.{% endblock %}"
-    >
+    <meta name="description" content="{% block meta_description %}AirSpace helps drone pilots organize pilot information, prepare FAA airspace waiver applications, build CONOPS documents, and manage waiver records.{% endblock %}">
 
-    <meta
-        name="keywords"
-        content="{% block meta_keywords %}FAA waiver, drone waiver, airspace waiver, UAS waiver, Part 107 waiver, drone pilot, CONOPS, FAA DroneZone{% endblock %}"
-    >
+    <meta name="keywords" content="{% block meta_keywords %}FAA waiver, drone waiver, airspace waiver, UAS waiver, Part 107 waiver, drone pilot, CONOPS, FAA DroneZone{% endblock %}">
 
-    <meta
-        name="author"
-        content="{% block meta_author %}AirSpace Waiver App{% endblock %}"
-    >
+    <meta name="author" content="{% block meta_author %}AirSpace Waiver App{% endblock %}">
 
-    <meta
-        name="robots"
-        content="{% block robots %}noindex, nofollow{% endblock %}"
-    >
+    <meta name="robots" content="{% block robots %}noindex, nofollow{% endblock %}">
 
-    <meta
-        property="og:type"
-        content="{% block og_type %}website{% endblock %}"
-    >
+    <meta property="og:type" content="{% block og_type %}website{% endblock %}">
 
-    <meta
-        property="og:site_name"
-        content="AirSpace Waiver App"
-    >
+    <meta property="og:site_name" content="AirSpace Waiver App">
 
-    <meta
-        property="og:title"
-        content="{% block og_title %}AirSpace Waiver App{% endblock %}"
-    >
+    <meta property="og:title" content="{% block og_title %}AirSpace Waiver App{% endblock %}">
 
-    <meta
-        property="og:description"
-        content="{% block og_description %}Prepare FAA drone waiver applications and professional CONOPS documents with AirSpace.{% endblock %}"
-    >
+    <meta property="og:description" content="{% block og_description %}Prepare FAA drone waiver applications and professional CONOPS documents with AirSpace.{% endblock %}">
 
-    <meta
-        property="og:url"
-        content="{{ request.build_absolute_uri }}"
-    >
+    <meta property="og:url" content="{{ request.build_absolute_uri }}">
 
-    <meta
-        name="twitter:card"
-        content="summary"
-    >
+    <meta name="twitter:card" content="summary">
 
-    <meta
-        name="twitter:title"
-        content="{% block twitter_title %}AirSpace Waiver App{% endblock %}"
-    >
+    <meta name="twitter:title" content="{% block twitter_title %}AirSpace Waiver App{% endblock %}">
 
-    <meta
-        name="twitter:description"
-        content="{% block twitter_description %}Prepare FAA drone waiver applications and professional CONOPS documents with AirSpace.{% endblock %}"
-    >
+    <meta name="twitter:description" content="{% block twitter_description %}Prepare FAA drone waiver applications and professional CONOPS documents with AirSpace.{% endblock %}">
 
-    <link
-        rel="canonical"
-        href="{{ request.build_absolute_uri }}"
-    >
+    <link rel="canonical" href="{{ request.build_absolute_uri }}">
 
-    <link
-        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css"
-        rel="stylesheet"
-    >
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" rel="stylesheet">
 
     {% block extra_css %}{% endblock %}
 </head>

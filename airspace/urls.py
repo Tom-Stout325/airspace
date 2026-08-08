@@ -5,7 +5,7 @@ from .views import (
     operation_aircraft_edit, operation_approval_add, operation_approval_delete,
     operation_approval_edit, operation_approval_tracking,
     operation_conops_review, operation_conops_pdf,
-    operation_faa_package_pdf,
+    operation_application_worksheet_pdf,
     operation_planning_pdf, operations_planning_create,
     operations_planning_detail,
     operations_planning_edit, address_search, nearest_airport_lookup,
@@ -43,9 +43,9 @@ urlpatterns = [
         name="operation_conops_pdf",
     ),
     path(
-        "operations/<int:operation_pk>/approvals/<int:approval_pk>/faa-package/pdf/",
-        operation_faa_package_pdf,
-        name="operation_faa_package_pdf",
+        "operations/<int:operation_pk>/approvals/<int:approval_pk>/application-worksheet/pdf/",
+        operation_application_worksheet_pdf,
+        name="operation_application_worksheet_pdf",
     ),
     path(
         "operations/<int:operation_pk>/approvals/<int:pk>/tracking/",

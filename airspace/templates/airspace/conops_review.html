@@ -37,6 +37,27 @@
     background: var(--bs-body-bg);
     box-shadow: 0 -.2rem 1rem rgba(0,0,0,.08);
   }
+  .conops-generation-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 2050;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background: rgba(15, 23, 42, .62);
+    pointer-events: auto;
+  }
+  .conops-generation-overlay[hidden] { display: none; }
+  .conops-generation-panel {
+    width: min(100%, 32rem);
+    padding: 1.5rem;
+    border: 1px solid rgba(70, 130, 180, .45);
+    border-radius: .85rem;
+    background: var(--bs-body-bg);
+    box-shadow: 0 1rem 3rem rgba(0, 0, 0, .28);
+    text-align: center;
+  }
 </style>
 
 <div class="container conops-shell py-4">
@@ -112,8 +133,11 @@
     </div>
   </div>
 
-  <form method="post" novalidate>
+  {% include "airspace/partials/_submission_workflow_stepper.html" %}
+
+  <form id="conops-review-form" method="post" novalidate>
     {% csrf_token %}
+    <input id="generation-action" type="hidden">
 
     <div class="alert alert-info border-info shadow-sm mb-4" role="note">
       <h2 class="h5 alert-heading fw-bold">
@@ -188,6 +212,21 @@
               · Generated
               {{ application.description_generated_at|date:"M j, Y g:i A" }}
             {% endif %}
+        </div>
+        <div class="mt-3 d-flex align-items-center gap-2">
+          <button
+            class="btn btn-sm btn-outline-secondary"
+            id="copy-description"
+            type="button"
+          >
+            Copy Description of Operations
+          </button>
+          <span
+            class="small text-muted"
+            id="copy-description-status"
+            role="status"
+            aria-live="polite"
+          ></span>
         </div>
       </div>
     </section>
@@ -268,6 +307,22 @@
       </section>
     {% endfor %}
 
+    {% if review_ready %}
+      <div class="alert alert-success border-success shadow-sm mt-4" role="status">
+        <h2 class="h5 alert-heading fw-bold">Ready to Submit</h2>
+        <ol class="mb-0 ps-3">
+          <li>Open FAA DroneZone.</li>
+          <li>Complete the online application using the AirSpace Application Worksheet.</li>
+          <li>Copy and paste the reviewed Description of Operations.</li>
+          <li>Attach the reviewed CONOPS, which includes the Operations Area Map.</li>
+          <li>Review the DroneZone application and submit it.</li>
+        </ol>
+        <p class="small mb-0 mt-2">
+          AirSpace prepares your documents but does not submit the application to the FAA.
+        </p>
+      </div>
+    {% endif %}
+
     <div class="conops-actions d-flex flex-column flex-lg-row justify-content-between gap-2">
       <a
         class="btn btn-outline-secondary"
@@ -284,43 +339,53 @@
             rel="noopener"
             href="{% url 'airspace:operation_conops_pdf' operation.pk approval.pk %}"
           >
-            View / Print PDF
+            View CONOPS
           </a>
           <a
             class="btn btn-outline-secondary"
             href="{% url 'airspace:operation_conops_pdf' operation.pk approval.pk %}?download=1"
           >
-            Download PDF
+            Download CONOPS
           </a>
           <a
             class="btn btn-outline-dark"
             target="_blank"
             rel="noopener"
-            href="{% url 'airspace:operation_faa_package_pdf' operation.pk approval.pk %}"
+            href="{% url 'airspace:operation_application_worksheet_pdf' operation.pk approval.pk %}"
           >
-            View FAA Package
+            View Worksheet
           </a>
           <a
             class="btn btn-outline-dark"
-            href="{% url 'airspace:operation_faa_package_pdf' operation.pk approval.pk %}?download=1"
+            href="{% url 'airspace:operation_application_worksheet_pdf' operation.pk approval.pk %}?download=1"
           >
-            Download FAA Package
+            Download Worksheet
           </a>
         {% endif %}
 
         <button
           class="btn btn-outline-primary"
+          id="generate-conops-button"
           type="submit"
           name="action"
           value="generate_ai"
           {% if not openai_configured %}disabled{% endif %}
           onclick="return confirm('Generate or refresh all unprotected content with ChatGPT? Reviewed protected content will not be changed.');"
         >
-          {% if conops_is_stale %}
-            Regenerate with ChatGPT
-          {% else %}
-            Generate with ChatGPT
-          {% endif %}
+          <span class="generation-idle-label">
+            {% if conops_is_stale %}
+              Regenerate with ChatGPT
+            {% else %}
+              Generate with ChatGPT
+            {% endif %}
+          </span>
+          <span class="generation-loading-label d-none">
+            <span
+              class="spinner-border spinner-border-sm me-1"
+              aria-hidden="true"
+            ></span>
+            Generating…
+          </span>
         </button>
 
         <button
@@ -336,6 +401,25 @@
   </form>
 </div>
 
+<div
+  class="conops-generation-overlay"
+  id="conops-generation-overlay"
+  role="status"
+  aria-live="polite"
+  aria-hidden="true"
+  tabindex="-1"
+  hidden
+>
+  <div class="conops-generation-panel">
+    <div class="spinner-border text-primary mb-3" aria-hidden="true"></div>
+    <h2 class="h4 mb-2">Generating CONOPS…</h2>
+    <p class="mb-0">
+      AirSpace is creating your Description of Operations and CONOPS. This may
+      take a minute. Please don't leave this page or submit another action.
+    </p>
+  </div>
+</div>
+
 <script>
 (() => {
   const field = document.getElementById("description");
@@ -347,6 +431,49 @@
   };
   field?.addEventListener("input", update);
   update();
+
+  const copyButton = document.getElementById("copy-description");
+  const copyStatus = document.getElementById("copy-description-status");
+  copyButton?.addEventListener("click", async () => {
+    if (!field) return;
+    try {
+      await navigator.clipboard.writeText(field.value);
+      copyStatus.textContent = "Copied.";
+    } catch (error) {
+      field.focus();
+      field.select();
+      copyStatus.textContent = "Text selected. Use your device's Copy command.";
+    }
+  });
+
+  const form = document.getElementById("conops-review-form");
+  const generateButton = document.getElementById("generate-conops-button");
+  const generationAction = document.getElementById("generation-action");
+  const overlay = document.getElementById("conops-generation-overlay");
+  let generationSubmitted = false;
+
+  form?.addEventListener("submit", (event) => {
+    if (generationSubmitted) {
+      event.preventDefault();
+      return;
+    }
+
+    const submitter = event.submitter;
+    if (!submitter || submitter.value !== "generate_ai") return;
+    generationSubmitted = true;
+
+    generationAction.name = "action";
+    generationAction.value = "generate_ai";
+    submitter.removeAttribute("name");
+    generateButton.disabled = true;
+    generateButton.querySelector(".generation-idle-label")?.classList.add("d-none");
+    generateButton.querySelector(".generation-loading-label")?.classList.remove("d-none");
+
+    document.body.setAttribute("aria-busy", "true");
+    overlay.hidden = false;
+    overlay.setAttribute("aria-hidden", "false");
+    overlay.focus();
+  });
 })();
 </script>
 {% endblock %}

@@ -33,6 +33,7 @@ pydantic==2.12.5
 pydantic_core==2.41.5
 pydyf==0.6.1
 pyphen==0.17.2
+pypdf==6.15.0
 python-dateutil==2.9.0.post0
 s3transfer==0.11.5
 six==1.17.0

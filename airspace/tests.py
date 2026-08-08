@@ -1,5 +1,6 @@
 from unittest.mock import MagicMock, patch
 from datetime import date
+from io import BytesIO
 import json
 from tempfile import TemporaryDirectory
 from django.contrib.auth import get_user_model
@@ -9,13 +10,17 @@ from django.test import TestCase, override_settings
 from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
+from PIL import Image
+from pypdf import PdfReader, PdfWriter
 from drones.models import Drone
 from pilot.models import PilotProfile
 from .ai_conops import (
     GeneratedConopsPackage,
     GeneratedConopsSection,
+    OpenAIConopsError,
     _operation_payload,
     _system_prompt,
+    _validate_package,
     generate_ai_conops,
 )
 from .conops import (
@@ -38,6 +43,7 @@ from .models import (
     OperationsPlanning,
 )
 from .services import build_waiver_description_prompt, search_openstreetmap_address
+from .views import _operation_timezone_display, _submission_workflow_steps
 
 User = get_user_model()
 
@@ -487,6 +493,45 @@ class ControlledAirspaceConopsWordingTests(TestCase):
             "Preserve user-entered emergency and ATC notification procedures exactly",
             prompt,
         )
+        self.assertIn("Preserve user-entered facility identifiers exactly", prompt)
+
+    def test_generated_package_requires_exact_lsv_atc_procedure(self):
+        procedure = "If required during an emergency, notify LSV ATC."
+        sections = [
+            GeneratedConopsSection(
+                key=definition.key,
+                title=definition.title,
+                content=(
+                    procedure
+                    if definition.key == "emergency-procedures"
+                    else f"Content for {definition.key}."
+                ),
+            )
+            for definition in CONOPS_DEFINITIONS
+        ]
+        package = GeneratedConopsPackage(
+            description_of_operations="Controlled-airspace operation.",
+            sections=sections,
+        )
+
+        _validate_package(
+            package,
+            required_exact_phrases=(procedure,),
+        )
+
+        sections[-1].content = (
+            "If required during an emergency, notify Las Vegas Motor "
+            "Speedway ATC."
+        )
+        expanded = GeneratedConopsPackage(
+            description_of_operations="Controlled-airspace operation.",
+            sections=sections,
+        )
+        with self.assertRaises(OpenAIConopsError):
+            _validate_package(
+                expanded,
+                required_exact_phrases=(procedure,),
+            )
 
     def test_conops_headings_render_regulation_only_once(self):
         self.client.force_login(self.user)
@@ -693,6 +738,102 @@ class ConopsReviewWorkflowTests(TestCase):
         self.assertContains(response, 'rows="15"', count=10)
         self.assertContains(response, "resize: vertical")
 
+    def test_submission_workflow_stepper_states(self):
+        incomplete = _submission_workflow_steps(
+            planning_complete=False,
+            conops_generated=False,
+            conops_stale=False,
+            review_complete=False,
+            submitted=False,
+        )
+        self.assertTrue(incomplete[0]["current"])
+        self.assertFalse(incomplete[0]["complete"])
+
+        generated = _submission_workflow_steps(
+            planning_complete=True,
+            conops_generated=True,
+            conops_stale=False,
+            review_complete=False,
+            submitted=False,
+        )
+        self.assertTrue(generated[0]["complete"])
+        self.assertTrue(generated[1]["complete"])
+        self.assertTrue(generated[2]["current"])
+
+        reviewed = _submission_workflow_steps(
+            planning_complete=True,
+            conops_generated=True,
+            conops_stale=False,
+            review_complete=True,
+            submitted=False,
+        )
+        self.assertTrue(all(step["complete"] for step in reviewed[:3]))
+        self.assertTrue(reviewed[3]["current"])
+        self.assertFalse(reviewed[3]["complete"])
+
+        submitted = _submission_workflow_steps(
+            planning_complete=True,
+            conops_generated=True,
+            conops_stale=False,
+            review_complete=True,
+            submitted=True,
+        )
+        self.assertTrue(all(step["complete"] for step in submitted))
+
+        stale = _submission_workflow_steps(
+            planning_complete=True,
+            conops_generated=True,
+            conops_stale=True,
+            review_complete=False,
+            submitted=False,
+        )
+        self.assertTrue(stale[1]["current"])
+        self.assertFalse(stale[1]["complete"])
+
+    def test_review_ui_has_separate_document_actions_and_submission_guidance(self):
+        self.application.description_is_complete = True
+        self.application.ai_generated_at = timezone.now()
+        self.application.ai_generation_model = "test-model"
+        self.application.conops_source_updated_at = timezone.now()
+        self.application.save(
+            update_fields=[
+                "description_is_complete",
+                "ai_generated_at",
+                "ai_generation_model",
+                "conops_source_updated_at",
+                "updated_at",
+            ]
+        )
+        ConopsSection.objects.filter(application=self.application).update(
+            is_complete=True
+        )
+
+        response = self.client.get(self.url)
+
+        self.assertContains(response, "View Worksheet")
+        self.assertContains(response, "Download Worksheet")
+        self.assertContains(response, "View CONOPS")
+        self.assertContains(response, "Download CONOPS")
+        self.assertContains(response, "Copy Description of Operations")
+        self.assertContains(response, "Ready to Submit")
+        self.assertNotContains(response, "FAA Package")
+
+    def test_generation_loading_state_markup_is_scoped_to_ai_action(self):
+        response = self.client.get(self.url)
+
+        self.assertContains(response, 'id="conops-generation-overlay"')
+        self.assertContains(response, 'role="status"')
+        self.assertContains(response, 'aria-live="polite"')
+        self.assertContains(response, "Generating CONOPS…")
+        self.assertContains(response, "Please don't leave this page")
+        self.assertContains(response, 'id="generate-conops-button"')
+        self.assertContains(response, "Generating…")
+        self.assertContains(
+            response,
+            'submitter.value !== "generate_ai"',
+        )
+        self.assertContains(response, 'aria-busy", "true"')
+
     @override_settings(
         OPENAI_API_KEY="test-key",
         OPENAI_TEXT_MODEL="test-model",
@@ -742,6 +883,223 @@ class ConopsReviewWorkflowTests(TestCase):
         self.assertEqual(
             unprotected_section.content,
             f"Regenerated {unprotected_section.section_key}.",
+        )
+
+    @override_settings(
+        OPENAI_API_KEY="test-key",
+        OPENAI_TEXT_MODEL="test-model",
+    )
+    @patch("airspace.ai_conops._request_ai_document")
+    def test_failed_identifier_fidelity_does_not_rewrite_protected_content(
+        self, request_document
+    ):
+        procedure = "Emergency notification will be made to LSV ATC."
+        self.operation.emergency_response_plan = procedure
+        self.operation.save(update_fields=["emergency_response_plan"])
+        protected_section = self.sections[-1]
+        protected_section.locked = True
+        protected_section.is_complete = True
+        protected_section.save(
+            update_fields=["locked", "is_complete", "updated_at"]
+        )
+        original_content = protected_section.content
+
+        request_document.return_value = (
+            GeneratedConopsPackage(
+                description_of_operations="Regenerated description.",
+                sections=[
+                    GeneratedConopsSection(
+                        key=definition.key,
+                        title=definition.title,
+                        content=(
+                            "Notify Las Vegas Motor Speedway ATC."
+                            if definition.key == "emergency-procedures"
+                            else f"Regenerated {definition.key}."
+                        ),
+                    )
+                    for definition in CONOPS_DEFINITIONS
+                ],
+            ),
+            MagicMock(usage=None),
+        )
+
+        with self.assertRaises(OpenAIConopsError):
+            generate_ai_conops(
+                self.approval,
+                self.user,
+                regenerate_unlocked=True,
+            )
+
+        protected_section.refresh_from_db()
+        self.assertEqual(protected_section.content, original_content)
+        self.assertTrue(protected_section.locked)
+        self.assertTrue(protected_section.is_complete)
+
+
+class SubmissionDocumentTests(TestCase):
+    def setUp(self):
+        ConopsReviewWorkflowTests.setUp(self)
+        self.operation.operation_description = (
+            "Year-round operatons use the stored applicant text."
+        )
+        self.operation.local_time_zone = "PST"
+        self.operation.dronezone_radius = "0.5_nm"
+        self.operation.location_latitude = "36.080000"
+        self.operation.location_longitude = "-115.152000"
+        self.operation.launch_location = "varies"
+        self.operation.recovery_location = "varies"
+        self.operation.ground_risk_mitigation = "Stored ground control text."
+        self.operation.air_risk_mitigation = "Stored air control text."
+        self.operation.emergency_response_plan = "Stored emergency text."
+        self.operation.weather_go_nogo = "Stored weather text."
+        self.operation.atc_facility_name = "LSV ATC"
+        self.operation.save()
+        self.worksheet_url = reverse(
+            "airspace:operation_application_worksheet_pdf",
+            kwargs={
+                "operation_pk": self.operation.pk,
+                "approval_pk": self.approval.pk,
+            },
+        )
+        self.conops_pdf_url = reverse(
+            "airspace:operation_conops_pdf",
+            kwargs={
+                "operation_pk": self.operation.pk,
+                "approval_pk": self.approval.pk,
+            },
+        )
+
+    @staticmethod
+    def _pdf_text(content):
+        return "\n".join(
+            page.extract_text() or ""
+            for page in PdfReader(BytesIO(content)).pages
+        )
+
+    def test_worksheet_is_applicant_reference_and_preserves_source_data(self):
+        response = self.client.get(self.worksheet_url)
+        text = self._pdf_text(response.content)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("FAA DroneZone Application Worksheet", text)
+        self.assertIn("PRIVATE APPLICANT PLANNING REFERENCE", text)
+        self.assertIn("DroneZone Requested Radius", text)
+        self.assertIn("1/2 NM", text)
+        self.assertNotIn("Launch-site radius", text)
+        self.assertIn("Operation Reference Latitude", text)
+        self.assertIn("Launch Location", text)
+        self.assertGreaterEqual(text.count("varies"), 2)
+        self.assertIn("Year-round operatons", text)
+        self.assertIn("Supporting Planning Information", text)
+        self.assertIn("Stored emergency text.", text)
+        self.assertIn("Stored weather text.", text)
+        self.assertIn("LSV ATC", text)
+        self.assertNotIn("Las Vegas ATC", text)
+        self.assertIn("Pacific Time (PT)", text)
+        self.assertNotIn("Pacific Standard Time", text)
+        self.assertNotIn("Concept of Operations (CONOPS)", text)
+
+    def test_timezone_display_uses_dst_safe_regional_name(self):
+        self.assertEqual(
+            _operation_timezone_display(self.operation),
+            "Pacific Time (PT)",
+        )
+
+    def test_standalone_conops_excludes_worksheet_sections(self):
+        response = self.client.get(self.conops_pdf_url)
+        text = self._pdf_text(response.content)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("CONCEPT OF OPERATIONS", text)
+        self.assertIn("Appendix A — Operations Area Map", text)
+        self.assertIn("No operations area map is available", text)
+        self.assertNotIn("FAA DroneZone Application Worksheet", text)
+        self.assertNotIn("Supporting Planning Information", text)
+        self.assertIn("Draft — RPIC review required", text)
+
+    def test_image_map_is_embedded_without_private_location_leakage(self):
+        image = Image.new("RGB", (1200, 800), color=(20, 90, 140))
+        image_bytes = BytesIO()
+        image.save(image_bytes, format="PNG")
+
+        with TemporaryDirectory() as media_root, override_settings(
+            MEDIA_ROOT=media_root
+        ):
+            self.operation.operation_map.save(
+                "private-map.png",
+                SimpleUploadedFile(
+                    "private-map.png",
+                    image_bytes.getvalue(),
+                    content_type="image/png",
+                ),
+            )
+            response = self.client.get(self.conops_pdf_url)
+            reader = PdfReader(BytesIO(response.content))
+            text = "\n".join(page.extract_text() or "" for page in reader.pages)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Appendix A — Operations Area Map", text)
+        self.assertNotIn("No operations area map is available", text)
+        self.assertNotIn("operation_maps/", text)
+        self.assertNotIn("private-map.png", text)
+        self.assertTrue(any(page.images for page in reader.pages))
+
+    def _pdf_map_response(self, page_count):
+        map_buffer = BytesIO()
+        map_writer = PdfWriter()
+        for _ in range(page_count):
+            map_writer.add_blank_page(width=612, height=792)
+        map_writer.write(map_buffer)
+
+        with TemporaryDirectory() as media_root, override_settings(
+            MEDIA_ROOT=media_root
+        ):
+            self.operation.operation_map.save(
+                "private-map.pdf",
+                SimpleUploadedFile(
+                    "private-map.pdf",
+                    map_buffer.getvalue(),
+                    content_type="application/pdf",
+                ),
+            )
+            response = self.client.get(self.conops_pdf_url)
+            reader = PdfReader(BytesIO(response.content))
+            texts = [page.extract_text() or "" for page in reader.pages]
+
+        return response, reader, texts
+
+    def test_single_page_pdf_map_is_first_appendix_page_and_numbered(self):
+        response, reader, texts = self._pdf_map_response(1)
+        text = "\n".join(texts)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Appendix A — Operations Area Map", texts[-1])
+        self.assertEqual(text.count("Appendix A — Operations Area Map"), 1)
+        self.assertNotIn("operation_maps/", text)
+        self.assertNotIn("private-map.pdf", text)
+        self.assertIn(
+            f"Page {len(reader.pages)} of {len(reader.pages)}",
+            texts[-1],
+        )
+
+    def test_multi_page_pdf_map_all_pages_share_final_page_total(self):
+        single_response, single_reader, _ = self._pdf_map_response(1)
+        response, reader, texts = self._pdf_map_response(2)
+        text = "\n".join(texts)
+
+        self.assertEqual(single_response.status_code, 200)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(reader.pages), len(single_reader.pages) + 1)
+        self.assertIn("Appendix A — Operations Area Map", texts[-2])
+        self.assertNotIn("Appendix A — Operations Area Map", texts[-1])
+        self.assertEqual(text.count("Appendix A — Operations Area Map"), 1)
+        self.assertIn(
+            f"Page {len(reader.pages) - 1} of {len(reader.pages)}",
+            texts[-2],
+        )
+        self.assertIn(
+            f"Page {len(reader.pages)} of {len(reader.pages)}",
+            texts[-1],
         )
 
 

@@ -302,6 +302,10 @@ FAA / REGULATORY GUARDRAILS FOR A STANDARD §107.41 REQUEST:
   requirement, or check-in procedure.
 - If an ATC contact or frequency exists in the planning record, reproduce it
   exactly and describe it only for the purpose entered by the user.
+- Preserve user-entered facility identifiers exactly as written. Never expand,
+  reinterpret, normalize, or substitute an identifier such as "LSV ATC" with
+  a facility name, airport code, or another identifier unless that exact value
+  appears in the relevant planning field.
 - Do not mention a UAS Facility Map (UASFM) grid altitude unless a grid
   altitude is explicitly supplied in the planning data. Never invent a grid
   altitude or claim that the requested altitude is within a UASFM value when
@@ -444,6 +448,8 @@ def _usage_value(usage: Any, field_name: str) -> int | None:
 
 def _validate_package(
     package: GeneratedConopsPackage,
+    *,
+    required_exact_phrases: tuple[str, ...] = (),
 ) -> dict[str, GeneratedConopsSection]:
     expected = {
         item.key: item.title
@@ -493,6 +499,21 @@ def _validate_package(
                 "The generated CONOPS changed the required title "
                 f"for {key!r}."
             )
+
+    generated_text = "\n".join(
+        [package.description_of_operations]
+        + [section.content for section in package.sections]
+    )
+    missing_phrases = [
+        phrase
+        for phrase in required_exact_phrases
+        if phrase and phrase not in generated_text
+    ]
+    if missing_phrases:
+        raise OpenAIConopsError(
+            "The generated CONOPS did not preserve one or more user-entered "
+            "ATC or emergency procedures exactly. No reviewed content was changed."
+        )
 
     return returned
 
@@ -593,7 +614,19 @@ def generate_ai_conops(
             api_key=api_key,
             timeout=timeout,
         )
-        returned = _validate_package(package)
+        required_exact_phrases = tuple(
+            value.strip()
+            for value in (
+                approval.operation.atc_facility_name,
+                approval.operation.atc_checkin_procedure,
+                approval.operation.emergency_response_plan,
+            )
+            if value and value.strip()
+        )
+        returned = _validate_package(
+            package,
+            required_exact_phrases=required_exact_phrases,
+        )
     except (
         OpenAIConopsError,
         ValidationError,

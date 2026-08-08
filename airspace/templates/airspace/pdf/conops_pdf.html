@@ -8,9 +8,6 @@
     @page {
       size: Letter;
       margin: .65in .65in .75in;
-      @bottom-left { content: "AirSpace CONOPS"; font-size: 8pt; color: #667; }
-      @bottom-center { content: "{{ operation.operation_title }}"; font-size: 8pt; color: #667; }
-      @bottom-right { content: "Page " counter(page) " of " counter(pages); font-size: 8pt; color: #667; }
     }
     body { font-family: Arial, Helvetica, sans-serif; color: #20262d; font-size: 10pt; line-height: 1.48; }
     .cover { min-height: 8.2in; page-break-after: always; }
@@ -37,6 +34,16 @@
     .content { white-space: pre-wrap; overflow-wrap: anywhere; }
     .draft { color: #8a5a00; font-weight: bold; }
     .complete { color: #126b3a; font-weight: bold; }
+    .map-appendix { page-break-before: always; }
+    .operation-map {
+      display: block;
+      max-width: 100%;
+      max-height: 8.2in;
+      width: auto;
+      height: auto;
+      margin: .2in auto 0;
+      object-fit: contain;
+    }
   </style>
 </head>
 <body>
@@ -65,5 +72,20 @@
       <div class="content">{{ section.content }}</div>
     </section>
   {% endfor %}
+
+  {% if not operation_map_is_pdf %}
+    <section class="map-appendix">
+      <h2>Appendix A — Operations Area Map</h2>
+      {% if operation_map_image_uri %}
+        <img
+          class="operation-map"
+          src="{{ operation_map_image_uri }}"
+          alt="User-uploaded operations area map"
+        >
+      {% else %}
+        <p>No operations area map is available in the planning record.</p>
+      {% endif %}
+    </section>
+  {% endif %}
 </body>
 </html>

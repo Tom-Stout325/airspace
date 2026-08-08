@@ -140,6 +140,8 @@
     </div>
   </div>
 
+  {% include "airspace/partials/_submission_workflow_stepper.html" %}
+
   <div class="row g-4">
     <div class="col-12 col-lg-7">
       <div
@@ -287,17 +289,31 @@
                   </a>
                   <a
                     class="btn btn-sm btn-outline-dark"
-                    href="{% url 'airspace:operation_faa_package_pdf' operation.pk item.pk %}"
+                    href="{% url 'airspace:operation_application_worksheet_pdf' operation.pk item.pk %}"
                     target="_blank"
                     rel="noopener"
                   >
-                    View FAA Package
+                    View Worksheet
                   </a>
                   <a
                     class="btn btn-sm btn-outline-dark"
-                    href="{% url 'airspace:operation_faa_package_pdf' operation.pk item.pk %}?download=1"
+                    href="{% url 'airspace:operation_application_worksheet_pdf' operation.pk item.pk %}?download=1"
                   >
-                    Download FAA Package
+                    Download Worksheet
+                  </a>
+                  <a
+                    class="btn btn-sm btn-outline-dark"
+                    href="{% url 'airspace:operation_conops_pdf' operation.pk item.pk %}"
+                    target="_blank"
+                    rel="noopener"
+                  >
+                    View CONOPS
+                  </a>
+                  <a
+                    class="btn btn-sm btn-outline-dark"
+                    href="{% url 'airspace:operation_conops_pdf' operation.pk item.pk %}?download=1"
+                  >
+                    Download CONOPS
                   </a>
                   <a
                     class="btn btn-sm btn-outline-danger"

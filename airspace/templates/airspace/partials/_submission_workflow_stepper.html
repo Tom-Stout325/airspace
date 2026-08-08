@@ -1,0 +1,64 @@
+<style>
+  .submission-stepper {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: .5rem;
+  }
+  .submission-step {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: .65rem;
+    padding: .7rem .8rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: .65rem;
+    background: var(--bs-tertiary-bg);
+    color: var(--bs-secondary-color);
+  }
+  .submission-step-number {
+    display: inline-flex;
+    width: 1.65rem;
+    height: 1.65rem;
+    flex: 0 0 1.65rem;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid currentColor;
+    border-radius: 50%;
+    font-size: .78rem;
+    font-weight: 700;
+  }
+  .submission-step.is-complete {
+    border-color: var(--bs-success-border-subtle);
+    background: var(--bs-success-bg-subtle);
+    color: var(--bs-success-text-emphasis);
+  }
+  .submission-step.is-current {
+    border-color: SteelBlue;
+    background: rgba(70, 130, 180, .1);
+    color: SteelBlue;
+    box-shadow: 0 0 0 .15rem rgba(70, 130, 180, .12);
+  }
+  @media (min-width: 768px) {
+    .submission-stepper { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .submission-step { align-items: flex-start; }
+  }
+</style>
+
+<nav class="mb-4" aria-label="FAA submission workflow">
+  <div class="small fw-semibold text-uppercase text-muted mb-2">
+    Submission workflow
+  </div>
+  <ol class="submission-stepper list-unstyled mb-0">
+    {% for step in submission_workflow_steps %}
+      <li
+        class="submission-step{% if step.complete %} is-complete{% elif step.current %} is-current{% endif %}"
+        {% if step.current %}aria-current="step"{% endif %}
+      >
+        <span class="submission-step-number">
+          {% if step.complete %}✓{% else %}{{ forloop.counter }}{% endif %}
+        </span>
+        <span class="small fw-semibold">{{ step.title }}</span>
+      </li>
+    {% endfor %}
+  </ol>
+</nav>

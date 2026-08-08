@@ -2,13 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>{{ operation.operation_title }} - FAA Application Package</title>
+  <title>{{ operation.operation_title }} - FAA DroneZone Application Worksheet</title>
   <style>
     @page {
       size: Letter;
       margin: 0.65in 0.65in 0.7in;
       @bottom-center {
-        content: "AirSpace FAA Application Package · Page " counter(page) " of " counter(pages);
+        content: "AirSpace FAA DroneZone Application Worksheet · Page " counter(page) " of " counter(pages);
         font-size: 8pt;
         color: #6c757d;
       }
@@ -20,8 +20,8 @@
     h2 { font-size: 15pt; color: SteelBlue; border-bottom: 2px solid SteelBlue; padding-bottom: 5px; margin-top: 22px; }
     h3 { font-size: 11.5pt; margin-bottom: 6px; }
     p { margin: 0 0 8px; }
-    .cover { min-height: 8.3in; display: flex; flex-direction: column; justify-content: center; text-align: center; page-break-after: always; }
-    .logo { max-width: 235px; max-height: 90px; margin: 0 auto 28px; }
+    .worksheet-header { text-align: center; margin-bottom: 22px; }
+    .logo { max-width: 200px; max-height: 75px; margin: 0 auto 18px; }
     .eyebrow { text-transform: uppercase; letter-spacing: .08em; color: SteelBlue; font-size: 9pt; font-weight: bold; }
     .subtitle { font-size: 12pt; color: #52606d; margin-top: 8px; }
     .status { display: inline-block; margin-top: 20px; padding: 7px 12px; border: 1px solid #98a6b3; border-radius: 4px; font-weight: bold; }
@@ -38,36 +38,29 @@
     .notice { border-left: 4px solid #ffc107; background: #fff8e1; padding: 10px 12px; margin: 12px 0; }
     .notice.good { border-left-color: #198754; background: #edf8f2; }
     .section { page-break-inside: avoid; margin-bottom: 18px; }
-    .conops-section { page-break-inside: auto; margin-bottom: 22px; }
-    .conops-section h3 { color: SteelBlue; border-bottom: 1px solid #cbd2d9; padding-bottom: 4px; }
     .meta { color: #6c757d; font-size: 8.5pt; }
     .aircraft { border: 1px solid #cbd2d9; padding: 10px; margin-bottom: 10px; page-break-inside: avoid; }
     ul { margin-top: 5px; }
   </style>
 </head>
 <body>
-<section class="cover">
+<header class="worksheet-header">
   {% if logo_uri %}<img class="logo" src="{{ logo_uri }}" alt="AirSpace">{% endif %}
-  <div class="eyebrow">FAA Application Planning Package</div>
+  <div class="eyebrow">Private Applicant Planning Reference</div>
   <h1>{{ operation.operation_title }}</h1>
   <div class="subtitle">
     {% if approval.regulation_display %}{{ approval.regulation_display }} — {% endif %}{{ approval.approval_type.name }}
   </div>
   <div class="subtitle">{{ operation.start_date }}{% if operation.end_date %} through {{ operation.end_date }}{% endif %}</div>
-  {% if package_ready %}<div class="status ready">Planning and CONOPS Review Complete</div>{% else %}<div class="status draft">Draft / Review Required Before FAA Submission</div>{% endif %}
-  <p class="meta" style="margin-top: 28px;">Package generated {{ generated_at|date:"F j, Y g:i A" }}</p>
-</section>
+  <p class="meta" style="margin-top: 18px;">Worksheet generated {{ generated_at|date:"F j, Y g:i A" }}</p>
+</header>
 
 <h2>FAA DroneZone Application Worksheet</h2>
-{% if not package_ready %}
-  <div class="notice">
-    <strong>This package is not yet marked ready for FAA submission.</strong>
-    {% if conops_stale %} Planning changed after the current AI CONOPS was generated.{% elif not all_sections_complete %} One or more CONOPS sections still require RPIC review.{% elif not conops_generated %} The current CONOPS has not been confirmed as an AI-generated package.{% endif %}
-    The worksheet remains available as a planning reference.
-  </div>
-{% else %}
-  <div class="notice good">The saved planning data and reviewed CONOPS are current as of this package generation.</div>
-{% endif %}
+<div class="notice">
+  <strong>Applicant worksheet — do not upload this document as a complete FAA attachment.</strong>
+  Use it as a private reference while entering the application in FAA DroneZone.
+  Upload the separate reviewed CONOPS document where requested.
+</div>
 
 <table class="worksheet">
   <tr><th>Operation Title</th><td>{{ operation.operation_title }}</td></tr>
@@ -79,9 +72,11 @@
   <tr><th>Local Time Zone</th><td>{{ local_time_zone_display|default:"Not specified" }}</td></tr>
   <tr><th>Proposed Location of Operation</th><td>{% if operation.venue_name %}<strong>{{ operation.venue_name }}</strong><br>{% endif %}{% if operation.street_address %}{{ operation.street_address }}<br>{% endif %}{{ operation.location_city }}{% if operation.location_state %}, {{ operation.location_state }}{% endif %} {{ operation.zip_code }}</td></tr>
   <tr><th>Proposed Max Flight Altitude AGL</th><td>{% if operation.maximum_planned_altitude_agl %}{{ operation.maximum_planned_altitude_agl }} feet AGL{% else %}Not specified{% endif %}</td></tr>
-  <tr><th>Latitude</th><td class="coordinate">{% if latitude_dms %}{{ latitude_dms.degrees }}° {{ latitude_dms.minutes }}′ {{ latitude_dms.seconds }}″ {{ latitude_dms.direction }} <span class="meta">({{ operation.location_latitude }} decimal)</span>{% else %}Not specified{% endif %}</td></tr>
-  <tr><th>Longitude</th><td class="coordinate">{% if longitude_dms %}{{ longitude_dms.degrees }}° {{ longitude_dms.minutes }}′ {{ longitude_dms.seconds }}″ {{ longitude_dms.direction }} <span class="meta">({{ operation.location_longitude }} decimal)</span>{% else %}Not specified{% endif %}</td></tr>
-  <tr><th>Radius</th><td>{{ dronezone_radius_display|default:"Not specified" }}</td></tr>
+  <tr><th>Operation Reference Latitude</th><td class="coordinate">{% if latitude_dms %}{{ latitude_dms.degrees }}° {{ latitude_dms.minutes }}′ {{ latitude_dms.seconds }}″ {{ latitude_dms.direction }} <span class="meta">({{ operation.location_latitude }} decimal)</span>{% else %}Not specified{% endif %}</td></tr>
+  <tr><th>Operation Reference Longitude</th><td class="coordinate">{% if longitude_dms %}{{ longitude_dms.degrees }}° {{ longitude_dms.minutes }}′ {{ longitude_dms.seconds }}″ {{ longitude_dms.direction }} <span class="meta">({{ operation.location_longitude }} decimal)</span>{% else %}Not specified{% endif %}</td></tr>
+  <tr><th>Launch Location</th><td>{{ operation.launch_location|default:"Not specified" }}</td></tr>
+  <tr><th>Recovery Location</th><td>{{ operation.recovery_location|default:"Not specified" }}</td></tr>
+  <tr><th>DroneZone Requested Radius</th><td>{{ dronezone_radius_display|default:"Not specified" }}</td></tr>
   <tr><th>Nearest Airport</th><td>{{ nearest_airport_label|default:"Not specified" }}{% if operation.distance_to_airport_nm %} · {{ operation.distance_to_airport_nm }} NM{% endif %}</td></tr>
   <tr><th>Class of Airspace</th><td>{{ airspace_class_display|default:"Not specified" }}</td></tr>
   <tr><th>Relevant Existing Waivers</th><td>{% if has_relevant_waivers %}<strong>☑ Yes &nbsp;&nbsp; ☐ No</strong><ul>{% for waiver in relevant_waivers %}<li>{{ waiver.approval_type.name }}{% if waiver.approval_type.regulation %} ({{ waiver.approval_type.regulation }}){% endif %} — {{ waiver.get_status_display }}{% if waiver.approval_number %} · Approval {{ waiver.approval_number }}{% elif waiver.faa_tracking_number %} · Tracking {{ waiver.faa_tracking_number }}{% endif %}</li>{% endfor %}</ul>{% else %}<strong>☐ Yes &nbsp;&nbsp; ☑ No</strong>{% endif %}</td></tr>
@@ -90,18 +85,6 @@
 <h2>Description of Operation</h2>
 <div class="narrative">{{ application.description }}</div>
 
-<div class="page-break"></div>
-<h2>Concept of Operations (CONOPS)</h2>
-<p class="meta">AI model: {{ application.ai_generation_model|default:"Not recorded" }}{% if application.ai_generated_at %} · Generated {{ application.ai_generated_at|date:"F j, Y g:i A" }}{% endif %}</p>
-{% for section in sections %}
-  <div class="conops-section">
-    <h3>{{ section.title }}</h3>
-    <div class="narrative">{{ section.content }}</div>
-    <div class="meta">Review status: {% if section.is_complete %}Reviewed / Complete{% else %}Needs Review{% endif %}{% if section.locked %} · Protected from regeneration{% endif %}</div>
-  </div>
-{% endfor %}
-
-<div class="page-break"></div>
 <h2>Supporting Planning Information</h2>
 <div class="section">
   <h3>Remote Pilot in Command</h3>
@@ -127,6 +110,7 @@
 
 <div class="section">
   <h3>Operation Purpose and Area</h3>
+  {% if operation.operation_description %}<p><strong>Operation description:</strong></p><div class="narrative">{{ operation.operation_description }}</div>{% endif %}
   <p><strong>Mission purpose:</strong> {% if purpose_labels %}{{ purpose_labels|join:", " }}{% else %}Not specified{% endif %}</p>
   {% if operation.purpose_operations_details %}<div class="narrative">{{ operation.purpose_operations_details }}</div>{% endif %}
   <p><strong>Operation area:</strong> {{ operation.get_operation_area_type_display }}</p>
@@ -155,6 +139,7 @@
 <div class="section">
   <h3>Weather and Prepared Procedures</h3>
   <p>Maximum wind: {% if operation.max_wind_mph %}{{ operation.max_wind_mph }} MPH{% else %}Not specified{% endif %}. Minimum visibility: {% if operation.min_visibility_sm %}{{ operation.min_visibility_sm }} SM{% else %}Not specified{% endif %}.</p>
+  <p><strong>Weather go/no-go procedure:</strong></p><div class="narrative">{{ operation.weather_go_nogo|default:"Not specified" }}</div>
   <p>Prepared procedures: {% if prepared_procedure_labels %}{{ prepared_procedure_labels|join:", " }}{% else %}Not specified{% endif %}</p>
 </div>
 
@@ -164,6 +149,8 @@
   <p><strong>Safety justification:</strong></p><div class="narrative">{{ approval.safety_justification|default:"Not specified" }}</div>
   <p><strong>Risk mitigations:</strong></p><div class="narrative">{{ approval.risk_mitigations|default:"Not specified" }}</div>
   {% if approval.equivalent_level_of_safety %}<p><strong>Equivalent level of safety:</strong></p><div class="narrative">{{ approval.equivalent_level_of_safety }}</div>{% endif %}
+  <p><strong>User-entered ATC facility:</strong></p><div class="narrative">{{ operation.atc_facility_name|default:"Not specified" }}</div>
+  <p><strong>User-entered ATC/check-in procedure:</strong></p><div class="narrative">{{ operation.atc_checkin_procedure|default:"Not specified" }}</div>
 </div>
 </body>
 </html>
