@@ -115,6 +115,10 @@
   {% if operation.purpose_operations_details %}<div class="narrative">{{ operation.purpose_operations_details }}</div>{% endif %}
   <p><strong>Operation area:</strong> {{ operation.get_operation_area_type_display }}</p>
   {% if operation.operation_area_description %}<div class="narrative">{{ operation.operation_area_description }}</div>{% endif %}
+  {% if operation.operation_area_type == "corridor" %}
+    <p><strong>Corridor dimensions:</strong> {{ operation.corridor_length_ft }} feet long by {{ operation.corridor_width_ft }} feet wide</p>
+  {% endif %}
+  {% if operation.operational_boundary_description %}<p><strong>Operational boundaries:</strong></p><div class="narrative">{{ operation.operational_boundary_description }}</div>{% endif %}
   <p><strong>Containment:</strong> {{ operation.get_containment_method_display|default:"Not specified" }}</p>
   {% if operation.containment_notes %}<div class="narrative">{{ operation.containment_notes }}</div>{% endif %}
 </div>
@@ -125,6 +129,10 @@
   {% if operation.ground_environment_notes %}<div class="narrative">{{ operation.ground_environment_notes }}</div>{% endif %}
   <p><strong>Ground risk mitigation:</strong></p><div class="narrative">{{ operation.ground_risk_mitigation|default:"Not specified" }}</div>
   <p><strong>Air risk mitigation:</strong></p><div class="narrative">{{ operation.air_risk_mitigation|default:"Not specified" }}</div>
+  <p><strong>Crewed Aircraft Conflict Response:</strong></p><div class="narrative">{{ operation.crewed_aircraft_conflict_response }}</div>
+  <p><strong>Operations over people / open-air assemblies:</strong> {{ operation.get_operations_over_people_display|default:"Not specified" }}</p>
+  {% if operation.crowd_mitigation %}<div class="narrative">{{ operation.crowd_mitigation }}</div>{% endif %}
+  {% if operation.additional_operational_information %}<p><strong>Additional operational information / controls:</strong></p><div class="narrative">{{ operation.additional_operational_information }}</div>{% endif %}
 </div>
 
 <div class="section">
@@ -150,7 +158,10 @@
   <p><strong>Risk mitigations:</strong></p><div class="narrative">{{ approval.risk_mitigations|default:"Not specified" }}</div>
   {% if approval.equivalent_level_of_safety %}<p><strong>Equivalent level of safety:</strong></p><div class="narrative">{{ approval.equivalent_level_of_safety }}</div>{% endif %}
   <p><strong>User-entered ATC facility:</strong></p><div class="narrative">{{ operation.atc_facility_name|default:"Not specified" }}</div>
-  <p><strong>User-entered ATC/check-in procedure:</strong></p><div class="narrative">{{ operation.atc_checkin_procedure|default:"Not specified" }}</div>
+  <p><strong>ATC frequency:</strong> {{ operation.atc_frequency|default:"Not specified" }}</p>
+  <p><strong>ATC phone/contact:</strong> {{ operation.atc_phone|default:"Not specified" }}</p>
+  <p><strong>Routine ATC coordination procedure:</strong></p><div class="narrative">{{ operation.atc_checkin_procedure|default:"Not specified" }}</div>
+  <p><strong>Emergency ATC notification procedure:</strong></p><div class="narrative">{{ operation.flyaway_actions|default:"Not specified" }}</div>
 </div>
 </body>
 </html>

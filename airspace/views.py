@@ -808,29 +808,36 @@ def operation_conops_review(request, operation_pk, approval_pk):
         description_changed = (
             description_text != application.description
         )
-        application.description = description_text
-        application.locked_description = (
+        locked_description = (
             request.POST.get("locked_description") == "on"
             or description_changed
         )
-        application.description_is_complete = bool(
+        description_is_complete = bool(
             request.POST.get("description_is_complete") == "on"
-            and not description_changed
+            and (
+                not description_changed
+                or not application.description_is_complete
+            )
         )
-        application.description_validated_at = (
-            timezone.now()
-            if application.description_is_complete
-            else None
-        )
-        application.save(
-            update_fields=[
-                "description",
-                "locked_description",
-                "description_is_complete",
-                "description_validated_at",
-                "updated_at",
-            ]
-        )
+        description_updates = []
+        if description_changed:
+            application.description = description_text
+            description_updates.append("description")
+        if locked_description != application.locked_description:
+            application.locked_description = locked_description
+            description_updates.append("locked_description")
+        if description_is_complete != application.description_is_complete:
+            application.description_is_complete = description_is_complete
+            application.description_validated_at = (
+                timezone.now() if description_is_complete else None
+            )
+            description_updates.extend(
+                ["description_is_complete", "description_validated_at"]
+            )
+        if description_updates:
+            application.save(
+                update_fields=description_updates + ["updated_at"]
+            )
 
         submitted_sections = {}
         for section in application.conops_sections.all():
@@ -865,7 +872,12 @@ def operation_conops_review(request, operation_pk, approval_pk):
                     regenerate_unlocked=True,
                 )
             except OpenAIConopsError as exc:
-                messages.error(request, str(exc))
+                messages.error(
+                    request,
+                    "CONOPS generation failed. The existing Description of "
+                    "Operations and CONOPS sections were not replaced. "
+                    f"{exc}",
+                )
             else:
                 messages.success(
                     request,

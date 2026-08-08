@@ -8,9 +8,16 @@ from django.utils import timezone
 
 from .models import (
     ApprovalApplication,
+    CREWED_AIRCRAFT_CONFLICT_RESPONSE_NO_VO,
+    CREWED_AIRCRAFT_CONFLICT_RESPONSE_VO,
     ConopsSection,
     OperationApproval,
     OperationsPlanning,
+)
+
+
+OPERATIONS_OVER_PEOPLE_AVOIDED = (
+    "Flight over non-participating persons and open-air assemblies will be avoided."
 )
 
 
@@ -330,9 +337,30 @@ def _area_and_containment(approval) -> str:
         else "not yet selected"
     )
 
+    corridor_dimensions = ""
+    if (
+        operation.operation_area_type == "corridor"
+        and operation.corridor_length_ft is not None
+        and operation.corridor_width_ft is not None
+    ):
+        corridor_dimensions = (
+            "The planned operating corridor is approximately "
+            f"{operation.corridor_length_ft:,} feet long by "
+            f"{operation.corridor_width_ft:,} feet wide.\n"
+        )
+
+    boundary = ""
+    if _clean(operation.operational_boundary_description):
+        boundary = (
+            "Operational boundaries: "
+            f"{operation.operational_boundary_description}\n\n"
+        )
+
     return (
         f"The operational area geometry is {geometry}. "
         f"{_sentence(operation.operation_area_description)}\n\n"
+        f"{corridor_dimensions}"
+        f"{boundary}"
         f"The primary containment method is {containment}. "
         f"Containment procedures: "
         f"{_sentence(operation.containment_notes)}\n\n"
@@ -340,6 +368,37 @@ def _area_and_containment(approval) -> str:
         f"{_sentence(operation.launch_location)}\n"
         f"Planned landing location: "
         f"{_sentence(operation.recovery_location)}"
+    )
+
+
+def _operations_over_people(operation) -> str:
+    standard = {
+        "avoided": OPERATIONS_OVER_PEOPLE_AVOIDED,
+        "part_107_compliant": (
+            "The operation may involve flight over people and will comply "
+            "with an applicable Part 107 Operations Over People category."
+        ),
+        "separate_relief": (
+            "The planned operation may require separate FAA relief or approval "
+            "for operations over people."
+        ),
+        "requires_review": (
+            "The applicability of Operations Over People requirements requires "
+            "further review."
+        ),
+    }.get(operation.operations_over_people, "")
+    mitigation = _clean(operation.crowd_mitigation)
+    return " ".join(part for part in (standard, mitigation) if part)
+
+
+def _crewed_aircraft_conflict_response(operation) -> str:
+    stored = _clean(operation.crewed_aircraft_conflict_response)
+    if stored:
+        return stored
+    return (
+        CREWED_AIRCRAFT_CONFLICT_RESPONSE_VO
+        if operation.has_visual_observer
+        else CREWED_AIRCRAFT_CONFLICT_RESPONSE_NO_VO
     )
 
 
@@ -374,6 +433,8 @@ def _ground_air_risk(approval) -> str:
         f"{_clean(operation.estimated_crowd_size) or 'not yet entered'}.\n\n"
         f"Ground risk controls:\n"
         f"{_sentence(operation.ground_risk_mitigation)}\n\n"
+        f"Operations over people / open-air assemblies:\n"
+        f"{_sentence(_operations_over_people(operation))}\n\n"
         f"Airspace risk controls:\n"
         f"{_sentence(operation.air_risk_mitigation)}\n\n"
         f"Additional operational support includes {support_text}."
@@ -553,11 +614,7 @@ def _see_and_avoid(approval) -> str:
             "yield right of way to crewed aircraft."
         )
 
-    details.append(
-        "Upon detection of a potential conflict with a crewed aircraft, "
-        "the RPIC will immediately descend, reposition, land, or otherwise "
-        "suspend the UAS operation as necessary to maintain safe separation."
-    )
+    details.append(_crewed_aircraft_conflict_response(operation))
 
     return " ".join(details)
 
@@ -644,6 +701,12 @@ def _operational_risk_controls(approval) -> str:
         "relevant flight information and anomalies, and ensure any incident "
         "or maintenance issue is addressed before the next operation."
     )
+
+    if _clean(operation.additional_operational_information):
+        sections.append(
+            "Additional Operational Information / Controls\n"
+            + operation.additional_operational_information
+        )
 
     return "\n\n".join(sections)
 
@@ -822,20 +885,28 @@ def save_conops_review(application, submitted_sections):
 
         new_content = _clean(submitted.get("content"))
         content_changed = new_content != section.content
-
-        section.content = new_content
-        section.locked = bool(
+        locked = bool(
             submitted.get("locked")
             or content_changed
         )
-        section.is_complete = bool(
-            submitted.get("is_complete") and not content_changed
+        is_complete = bool(
+            submitted.get("is_complete")
+            and (
+                not content_changed
+                or not section.is_complete
+            )
         )
-        section.validated_at = (
-            timezone.now()
-            if section.is_complete
-            else None
-        )
+        if (
+            not content_changed
+            and locked == section.locked
+            and is_complete == section.is_complete
+        ):
+            continue
+
+        section.content = new_content
+        section.locked = locked
+        section.is_complete = is_complete
+        section.validated_at = timezone.now() if is_complete else None
         section.save(
             update_fields=[
                 "content",

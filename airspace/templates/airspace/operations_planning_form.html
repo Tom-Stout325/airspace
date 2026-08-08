@@ -388,7 +388,14 @@
           {% include "airspace/partials/_field.html" with field=form.operation_area_type %}
           {% include "airspace/partials/_field.html" with field=form.dronezone_radius %}
           {% include "airspace/partials/_field.html" with field=form.containment_method %}
+          <div class="col-12" id="corridor-dimensions" hidden>
+            <div class="row g-3">
+              {% include "airspace/partials/_field.html" with field=form.corridor_length_ft %}
+              {% include "airspace/partials/_field.html" with field=form.corridor_width_ft %}
+            </div>
+          </div>
           {% include "airspace/partials/_field.html" with field=form.operation_area_description column_class="col-12" %}
+          {% include "airspace/partials/_field.html" with field=form.operational_boundary_description column_class="col-12" %}
           {% include "airspace/partials/_field.html" with field=form.containment_notes column_class="col-12" %}
         </div>
 
@@ -426,6 +433,20 @@
           {% include "airspace/partials/_field.html" with field=form.estimated_crowd_size %}
           {% include "airspace/partials/_field.html" with field=form.ground_risk_mitigation column_class="col-12" %}
           {% include "airspace/partials/_field.html" with field=form.air_risk_mitigation column_class="col-12" %}
+          {% include "airspace/partials/_field.html" with field=form.crewed_aircraft_conflict_response column_class="col-12" %}
+        </div>
+      </div>
+    </section>
+
+    <section class="operation-section">
+      <div class="operation-section-header">
+        <h2>Operations over people and open-air assemblies</h2>
+        <p class="text-muted">Record the planned regulatory position and operation-specific crowd controls without inferring eligibility.</p>
+      </div>
+      <div class="operation-section-body">
+        <div class="row g-3">
+          {% include "airspace/partials/_field.html" with field=form.operations_over_people %}
+          {% include "airspace/partials/_field.html" with field=form.crowd_mitigation column_class="col-12" %}
         </div>
       </div>
     </section>
@@ -443,6 +464,19 @@
           {% include "airspace/partials/_boolean_field.html" with field=form.has_visual_observer %}
           {% include "airspace/partials/_field.html" with field=form.insurance_provider %}
           {% include "airspace/partials/_field.html" with field=form.insurance_coverage_limit %}
+        </div>
+
+        <div class="alert alert-info mt-4 mb-2" role="note">
+          For controlled-airspace authorization planning under §107.41, use
+          of a Visual Observer is strongly recommended and may be required by
+          the FAA as a condition of authorization. A Visual Observer is not
+          universally required for every §107.41 operation.
+        </div>
+        <div class="alert alert-warning mb-0" id="no-vo-warning" role="alert" hidden>
+          <strong>No Visual Observer selected.</strong> The FAA may require a
+          Visual Observer as a condition of a controlled-airspace authorization.
+          Ensure the CONOPS clearly explains how the RPIC will maintain visual
+          awareness, detect crewed aircraft, and yield right of way.
         </div>
 
         <div class="alert operation-reference-note mt-4 mb-0" role="note">
@@ -468,6 +502,16 @@
           {% include "airspace/partials/_field.html" with field=form.incident_reporting_procedure column_class="col-12" %}
           {% include "airspace/partials/_field.html" with field=form.termination_conditions column_class="col-12" %}
         </div>
+      </div>
+    </section>
+
+    <section class="operation-section">
+      <div class="operation-section-header">
+        <h2>Additional operational information</h2>
+        <p class="text-muted">Provide relevant experience or controls not captured elsewhere.</p>
+      </div>
+      <div class="operation-section-body">
+        {% include "airspace/partials/_field.html" with field=form.additional_operational_information column_class="col-12" %}
       </div>
     </section>
 
@@ -755,6 +799,38 @@
       searchAddress();
     }
   });
+})();
+</script>
+<script>
+(() => {
+  const areaType = document.getElementById("id_operation_area_type");
+  const corridorDimensions = document.getElementById("corridor-dimensions");
+
+  const updateCorridorFields = () => {
+    if (!areaType || !corridorDimensions) return;
+    corridorDimensions.hidden = areaType.value !== "corridor";
+  };
+
+  areaType?.addEventListener("change", updateCorridorFields);
+  updateCorridorFields();
+
+  const visualObserver = document.getElementById("id_has_visual_observer");
+  const noVoWarning = document.getElementById("no-vo-warning");
+  const conflictResponse = document.getElementById("id_crewed_aircraft_conflict_response");
+  const updateVoWarning = () => {
+    if (!visualObserver || !noVoWarning) return;
+    noVoWarning.hidden = visualObserver.checked;
+    if (!conflictResponse) return;
+    const voStandard = conflictResponse.dataset.voStandard;
+    const noVoStandard = conflictResponse.dataset.noVoStandard;
+    if (visualObserver.checked && conflictResponse.value === noVoStandard) {
+      conflictResponse.value = voStandard;
+    } else if (!visualObserver.checked && conflictResponse.value === voStandard) {
+      conflictResponse.value = noVoStandard;
+    }
+  };
+  visualObserver?.addEventListener("change", updateVoWarning);
+  updateVoWarning();
 })();
 </script>
 {% endblock %}

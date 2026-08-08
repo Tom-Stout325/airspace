@@ -113,8 +113,12 @@
 
       {% if application.ai_generation_error %}
         <div class="alert alert-danger mt-3 mb-0">
-          <strong>Last generation error:</strong>
-          {{ application.ai_generation_error }}
+          <strong>
+            Generation failed — existing CONOPS content was not replaced.
+          </strong>
+          <div class="mt-1">
+            {{ application.ai_generation_error }}
+          </div>
         </div>
       {% endif %}
 

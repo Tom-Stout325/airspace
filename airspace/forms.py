@@ -7,6 +7,8 @@ from pilot.models import PilotProfile
 
 from .models import (
     ApprovalType,
+    CREWED_AIRCRAFT_CONFLICT_RESPONSE_NO_VO,
+    CREWED_AIRCRAFT_CONFLICT_RESPONSE_VO,
     OperationAircraft,
     OperationApproval,
     OperationsPlanning,
@@ -98,8 +100,6 @@ class OperationsPlanningForm(forms.ModelForm):
             "aircraft_manual",
             "operation_area_geojson",
             "location_radius_ft",
-            "corridor_length_ft",
-            "corridor_width_ft",
             "minimum_planned_altitude_agl",
             "max_groundspeed_mph",
             "maximum_distance_from_pilot_ft",
@@ -146,6 +146,11 @@ class OperationsPlanningForm(forms.ModelForm):
             "nearest_airport_ref": "Nearest Airport",
             "operation_area_type": "Operational Area Geometry",
             "operation_area_description": "Operational Area Description",
+            "operational_boundary_description": (
+                "Operational Boundary Description"
+            ),
+            "corridor_length_ft": "Corridor Length (Feet)",
+            "corridor_width_ft": "Corridor Width (Feet)",
             "operation_map": "Operating Area Map",
             "operation_map_notes": "Map Notes",
             "containment_method": "Primary Containment Method",
@@ -158,6 +163,18 @@ class OperationsPlanningForm(forms.ModelForm):
             "estimated_crowd_size": "Estimated Maximum Crowd Size",
             "ground_risk_mitigation": "Ground Risk Controls",
             "air_risk_mitigation": "Airspace Risk Controls",
+            "crewed_aircraft_conflict_response": (
+                "Crewed Aircraft Conflict Response"
+            ),
+            "operations_over_people": (
+                "Operations Over People / Open-Air Assemblies"
+            ),
+            "crowd_mitigation": (
+                "Operations Over People / Crowd Mitigation"
+            ),
+            "additional_operational_information": (
+                "Additional Operational Information / Controls"
+            ),
             "uses_drone_detection": "Drone Detection System Used",
             "uses_flight_tracking": "Crewed Aircraft Traffic Awareness Used",
             "flight_tracking_service": "Crewed Aircraft Tracking Service",
@@ -222,6 +239,18 @@ class OperationsPlanningForm(forms.ModelForm):
             "nearest_airport": "Use only when the airport is not available in the dropdown.",
             "operation_area_type": "Choose the shape that best describes the planned operating area. The exact boundary will later be defined on a map.",
             "operation_area_description": "Describe the lateral boundaries using roads, buildings, property lines, venue features, or other recognizable references.",
+            "operational_boundary_description": (
+                "Describe recognizable boundaries of the operating area and "
+                "any areas the aircraft must not enter. Examples include "
+                "roads, fences, buildings, property lines, runways, spectator "
+                "areas, or boundaries shown on the operation map."
+            ),
+            "corridor_length_ft": (
+                "Required when Operational Area Geometry is Corridor."
+            ),
+            "corridor_width_ft": (
+                "Required when Operational Area Geometry is Corridor."
+            ),
             "operation_map": (
                 "Upload the annotated map that will be included with the standalone CONOPS. Use the exact operating location rather than relying only on a facility mailing address."
             ),
@@ -238,6 +267,29 @@ class OperationsPlanningForm(forms.ModelForm):
             "estimated_crowd_size": "Estimate the greatest number of people expected within or immediately adjacent to the operating area.",
             "ground_risk_mitigation": "Describe how people, vehicles, and property will be protected. Examples include access control, barriers, spotters, restricted zones, scheduling, and emergency landing areas.",
             "air_risk_mitigation": "Describe how the crew will identify and avoid crewed aircraft or other airspace conflicts. Examples include visual observers, ADS-B awareness, altitude limits, ATC coordination, and immediate landing procedures.",
+            "crewed_aircraft_conflict_response": (
+                "Standard AirSpace response for a potential conflict with a "
+                "crewed aircraft. Review and edit if your operation requires "
+                "a different procedure."
+            ),
+            "operations_over_people": (
+                "Select the planning position that accurately describes the "
+                "operation. AirSpace will not infer Part 107 eligibility from "
+                "crowd size or access controls."
+            ),
+            "crowd_mitigation": (
+                "Describe how the RPIC will prevent or mitigate flight over "
+                "non-participants, spectators, crowds, or open-air assemblies. "
+                "Include barriers, controlled access, flight-path restrictions, "
+                "designated operating areas, or other applicable controls."
+            ),
+            "additional_operational_information": (
+                "Enter any additional information relevant to the FAA's "
+                "evaluation that is not captured elsewhere, such as prior "
+                "operating experience at the location, facility-specific "
+                "procedures, previous FAA coordination, unusual hazards, or "
+                "additional risk controls."
+            ),
             "uses_drone_detection": "Select when a dedicated system will detect other unmanned aircraft near the operation.",
             "uses_flight_tracking": "Select when the RPIC or visual observer will use a system or application to monitor nearby crewed-aircraft traffic. This supplements visual scanning and ATC coordination; it does not replace see-and-avoid responsibilities.",
             "flight_tracking_service": "Enter the actual service or application used for supplemental crewed-aircraft awareness. Leave blank when no named service is planned.",
@@ -273,10 +325,14 @@ class OperationsPlanningForm(forms.ModelForm):
             "operation_description": forms.Textarea(attrs={"rows": 4}),
             "purpose_operations_details": forms.Textarea(attrs={"rows": 3}),
             "operation_area_description": forms.Textarea(attrs={"rows": 3}),
+            "operational_boundary_description": forms.Textarea(attrs={"rows": 3}),
             "containment_notes": forms.Textarea(attrs={"rows": 3}),
             "ground_environment_other": forms.Textarea(attrs={"rows": 3}),
             "ground_risk_mitigation": forms.Textarea(attrs={"rows": 4}),
             "air_risk_mitigation": forms.Textarea(attrs={"rows": 4}),
+            "crewed_aircraft_conflict_response": forms.Textarea(attrs={"rows": 5}),
+            "crowd_mitigation": forms.Textarea(attrs={"rows": 4}),
+            "additional_operational_information": forms.Textarea(attrs={"rows": 4}),
             "lost_link_actions": forms.Textarea(attrs={"rows": 4}),
             "flyaway_actions": forms.Textarea(attrs={"rows": 4}),
             "emergency_response_plan": forms.Textarea(attrs={"rows": 5}),
@@ -328,6 +384,14 @@ class OperationsPlanningForm(forms.ModelForm):
                 "aria-readonly": "true",
             }
         )
+        self.fields["crewed_aircraft_conflict_response"].widget.attrs.update(
+            {
+                "data-vo-standard": CREWED_AIRCRAFT_CONFLICT_RESPONSE_VO,
+                "data-no-vo-standard": (
+                    CREWED_AIRCRAFT_CONFLICT_RESPONSE_NO_VO
+                ),
+            }
+        )
 
         checkbox_groups = {
             "timeframe",
@@ -363,6 +427,34 @@ class OperationsPlanningForm(forms.ModelForm):
             cleaned["min_visibility_sm"] = Decimal("3.0")
             cleaned["minimum_distance_below_clouds_ft"] = 500
             cleaned["minimum_horizontal_cloud_clearance_ft"] = 2000
+
+        conflict_response = (
+            cleaned.get("crewed_aircraft_conflict_response") or ""
+        ).strip()
+        has_visual_observer = bool(cleaned.get("has_visual_observer"))
+        if has_visual_observer and (
+            not conflict_response
+            or conflict_response == CREWED_AIRCRAFT_CONFLICT_RESPONSE_NO_VO
+        ):
+            cleaned["crewed_aircraft_conflict_response"] = (
+                CREWED_AIRCRAFT_CONFLICT_RESPONSE_VO
+            )
+        elif not has_visual_observer and (
+            not conflict_response
+            or conflict_response == CREWED_AIRCRAFT_CONFLICT_RESPONSE_VO
+        ):
+            cleaned["crewed_aircraft_conflict_response"] = (
+                CREWED_AIRCRAFT_CONFLICT_RESPONSE_NO_VO
+            )
+        elif (
+            not has_visual_observer
+            and "visual observer" in conflict_response.casefold()
+        ):
+            self.add_error(
+                "crewed_aircraft_conflict_response",
+                "Remove or revise the Visual Observer procedure when no "
+                "Visual Observer is selected.",
+            )
         return cleaned
 
     def _clean_coordinate(self, field_name):

@@ -12,6 +12,19 @@ from django.core.validators import FileExtensionValidator
 from django.db import models
 
 
+CREWED_AIRCRAFT_CONFLICT_RESPONSE_VO = (
+    "Upon detection of a crewed aircraft, the RPIC will descend, reposition, "
+    "or land as necessary while the Visual Observer continues reporting the "
+    "aircraft's position and trajectory until the potential conflict is "
+    "resolved. The RPIC will yield right of way to all crewed aircraft."
+)
+CREWED_AIRCRAFT_CONFLICT_RESPONSE_NO_VO = (
+    "Upon detection of a crewed aircraft, the RPIC will descend, reposition, "
+    "land, or otherwise maneuver as necessary to maintain separation and "
+    "yield right of way to all crewed aircraft."
+)
+
+
 class Airport(models.Model):
     faa_identifier = models.CharField(
         max_length=10,
@@ -134,6 +147,12 @@ class OperationsPlanning(models.Model):
         ("crowd_moderate", "Moderate public presence"),
         ("crowd_dense", "Dense gathering or event crowd"),
     ]
+    OPERATIONS_OVER_PEOPLE_CHOICES = [
+        ("avoided", "Avoided"),
+        ("part_107_compliant", "Part 107 compliant"),
+        ("separate_relief", "Separate relief required"),
+        ("requires_review", "Requires review"),
+    ]
     PREPARED_PROCEDURES_CHOICES = [
         ("preflight", "Pre-flight checklist"), ("postflight", "Post-flight checklist"),
         ("lost_link", "Lost-link procedure"), ("flyaway", "Flyaway procedure"),
@@ -215,6 +234,7 @@ class OperationsPlanning(models.Model):
         blank=True,
     )
     operation_area_description = models.TextField(blank=True)
+    operational_boundary_description = models.TextField(blank=True)
     operation_map = models.FileField(
         upload_to=operation_map_upload_to,
         blank=True,
@@ -254,6 +274,17 @@ class OperationsPlanning(models.Model):
     estimated_crowd_size = models.CharField(max_length=50, blank=True)
     ground_risk_mitigation = models.TextField(blank=True)
     air_risk_mitigation = models.TextField(blank=True)
+    crewed_aircraft_conflict_response = models.TextField(
+        default=CREWED_AIRCRAFT_CONFLICT_RESPONSE_VO,
+        blank=True,
+    )
+    operations_over_people = models.CharField(
+        max_length=30,
+        choices=OPERATIONS_OVER_PEOPLE_CHOICES,
+        blank=True,
+    )
+    crowd_mitigation = models.TextField(blank=True)
+    additional_operational_information = models.TextField(blank=True)
 
     uses_drone_detection = models.BooleanField(default=False)
     uses_flight_tracking = models.BooleanField(default=False)

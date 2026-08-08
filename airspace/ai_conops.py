@@ -16,11 +16,33 @@ from django.utils import timezone
 from openai import OpenAI
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from .conops import CONOPS_DEFINITIONS, get_or_create_application
+from .conops import (
+    CONOPS_DEFINITIONS,
+    OPERATIONS_OVER_PEOPLE_AVOIDED,
+    _crewed_aircraft_conflict_response,
+    _operations_over_people,
+    get_or_create_application,
+)
 from .models import ApprovalApplication, ConopsSection, OperationApproval
 
 
 PROMPT_VERSION = "controlled-airspace-v3"
+
+AIRCRAFT_REGISTRATION_PATTERN = re.compile(
+    r"\b(?:FAA\s+registration(?:\s+number)?|registration\s+number)"
+    r"\s*(?::|is)?\s*(?P<registration>(?=[A-Za-z0-9-]*\d)"
+    r"[A-Za-z0-9-]+)\b|\bregistered\s+as\s+"
+    r"(?P<registered_as>(?=[A-Za-z0-9-]*\d)[A-Za-z0-9-]+)\b",
+    re.IGNORECASE,
+)
+COORDINATE_PATTERN = re.compile(
+    r"(?<![\d.+-])[+-]?\d{1,3}\.\d{4,}(?!\d)"
+)
+COORDINATE_TOLERANCE = Decimal("0.0000001")
+EMERGENCY_AIRSPACE_CONFLICT_REFERENCE = (
+    "Airspace Conflict: Follow the crewed-aircraft conflict procedure "
+    "described in Section 4.0."
+)
 
 
 class OpenAIConopsError(RuntimeError):
@@ -247,6 +269,28 @@ def _operation_payload(
                     "explicitly says so."
                 ),
             },
+            "corridor_dimensions": {
+                "length_ft": operation.corridor_length_ft,
+                "width_ft": operation.corridor_width_ft,
+            } if operation.operation_area_type == "corridor" else None,
+            "operational_boundary_description": (
+                operation.operational_boundary_description
+            ),
+        },
+        "airspace_standard_procedures": {
+            "crewed_aircraft_conflict_response": (
+                _crewed_aircraft_conflict_response(operation)
+            ),
+            "operations_over_people": _operations_over_people(operation),
+            "flight_tracking_disclaimer": (
+                f"{operation.flight_tracking_service} is used as a "
+                "supplemental situational-awareness tool and does not replace "
+                "visual scanning, see-and-avoid responsibilities, or the "
+                "RPIC's obligation to yield right of way to crewed aircraft."
+                if operation.uses_flight_tracking
+                and operation.flight_tracking_service.strip()
+                else ""
+            ),
         },
         "pilot": {
             "name": pilot_name,
@@ -375,6 +419,15 @@ FAA / REGULATORY GUARDRAILS FOR A STANDARD §107.41 REQUEST:
   persons/open-air assemblies unless a separately applicable Part 107
   compliance basis is documented in the planning record.
 - Never invent a separate operations-over-people waiver or approval.
+- Treat airspace_standard_procedures as AirSpace-provided standard language.
+  Preserve those propositions without adding regulatory eligibility or approval.
+- Prior operating experience, previous FAA coordination, or prior work with an
+  ATC facility must remain historical context. Never convert it into a claim
+  that coordination for the current application has occurred.
+- Prior FAA approvals do not guarantee the current application, and previous
+  Special Provisions must not be presented as current requirements.
+- A stored ATC phone number or frequency is contact information only. Do not
+  invent a preflight calling or frequency-monitoring requirement.
 - Do not state that no direct ATC coordination or communication procedures are
   prescribed when the planning record contains a user-entered emergency ATC
   notification procedure. When there is no routine procedure, distinguish it
@@ -395,9 +448,10 @@ WRITING GUIDANCE BY SECTION:
 - Airspace Integration and ATC Coordination: Describe the authorization,
   any user-entered ATC coordination, and compliance with issued special
   provisions. Do not add vague phrases such as "local airspace control".
-- See-and-Avoid Methodology: Explain visual scanning, VO support, traffic
-  awareness tools, and immediate descent/reposition/landing/suspension for a
-  crewed-aircraft conflict.
+- See-and-Avoid Methodology: Provide only concise visual-scanning, VO-support,
+  and traffic-awareness context. Do not restate the supplied
+  crewed_aircraft_conflict_response; AirSpace inserts that authoritative
+  procedure deterministically after generation.
 - Flight Envelope and Operating Limitations: State planned altitude,
   geographic limits, wind/weather limits, correct cloud clearances, and
   go/no-go/termination criteria without restating the entire operation.
@@ -422,8 +476,10 @@ MANDATORY FACTUAL RULES:
   operating limits, or regulatory relief.
 - Preserve numeric values, dates, identifiers, regulations, and contact
   information exactly as supplied.
-- Preserve user-entered emergency and ATC notification procedures exactly; do
-  not remove, replace, or rewrite them.
+- Preserve every substantive action in user-entered emergency and ATC
+  procedures. Grammar and formatting may be improved, but exact facility
+  identifiers, frequencies, phone numbers, coordinates, numeric limits, and
+  other factual identifiers must remain unchanged.
 - If important information is missing, state briefly that RPIC completion is
   required; do not manufacture a value.
 - Do not claim or imply FAA approval.
@@ -485,7 +541,7 @@ def _usage_value(usage: Any, field_name: str) -> int | None:
 def _validate_package(
     package: GeneratedConopsPackage,
     *,
-    required_exact_phrases: tuple[str, ...] = (),
+    required_exact_identifiers: tuple[str, ...] = (),
 ) -> dict[str, GeneratedConopsSection]:
     expected = {
         item.key: item.title
@@ -540,18 +596,495 @@ def _validate_package(
         [package.description_of_operations]
         + [section.content for section in package.sections]
     )
-    missing_phrases = [
-        phrase
-        for phrase in required_exact_phrases
-        if phrase and phrase not in generated_text
+    missing_identifiers = [
+        identifier
+        for identifier in required_exact_identifiers
+        if identifier and identifier not in generated_text
     ]
-    if missing_phrases:
+    if missing_identifiers:
         raise OpenAIConopsError(
-            "The generated CONOPS did not preserve one or more user-entered "
-            "ATC or emergency procedures exactly. No reviewed content was changed."
+            "The generated CONOPS changed or omitted an exact user-entered "
+            "identifier: " + ", ".join(missing_identifiers) + ". "
+            "No reviewed content was changed."
         )
 
     return returned
+
+
+def _ensure_crewed_aircraft_response(
+    package: GeneratedConopsPackage,
+    operation,
+) -> None:
+    """Insert the authoritative stored procedure into generated Section 4."""
+    procedure = _crewed_aircraft_conflict_response(operation)
+    if not procedure:
+        return
+
+    section = next(
+        (
+            item
+            for item in package.sections
+            if item.key == "see-and-avoid"
+        ),
+        None,
+    )
+    if section is None:
+        return
+
+    intro = section.content.replace(procedure, " ")
+    sentences = re.split(r"(?<=[.!?])\s+", intro.strip())
+    concise_context = []
+    for sentence in sentences:
+        normalized = sentence.casefold()
+        action_count = sum(
+            term in normalized
+            for term in ("descend", "reposition", "land", "maneuver")
+        )
+        duplicates_response = (
+            action_count >= 2
+            and (
+                "crewed aircraft" in normalized
+                or "conflict" in normalized
+            )
+        )
+        if sentence.strip() and not duplicates_response:
+            concise_context.append(sentence.strip())
+
+    intro_text = " ".join(concise_context)
+    section.content = "\n\n".join(
+        part for part in (intro_text, procedure) if part
+    )
+
+
+def _ensure_emergency_airspace_conflict_reference(
+    package: GeneratedConopsPackage,
+) -> None:
+    """Replace repeated Section 4 response actions with one cross-reference."""
+    section = next(
+        (
+            item
+            for item in package.sections
+            if item.key == "emergency-procedures"
+        ),
+        None,
+    )
+    if section is None:
+        return
+
+    content = section.content.replace(
+        EMERGENCY_AIRSPACE_CONFLICT_REFERENCE,
+        " ",
+    )
+    retained = []
+    for sentence in re.split(r"(?<=[.!?])\s+", content.strip()):
+        normalized = sentence.casefold()
+        action_count = sum(
+            term in normalized
+            for term in ("descend", "reposition", "land", "maneuver")
+        )
+        duplicate = (
+            action_count >= 2
+            and (
+                "crewed aircraft" in normalized
+                or "airspace conflict" in normalized
+            )
+        )
+        if sentence.strip() and not duplicate:
+            retained.append(sentence.strip())
+
+    section.content = "\n\n".join(
+        part
+        for part in (
+            " ".join(retained),
+            EMERGENCY_AIRSPACE_CONFLICT_REFERENCE,
+        )
+        if part
+    )
+
+
+def _assigned_registration_lookup(operation) -> dict[str, str]:
+    return {
+        registration.casefold(): registration
+        for assignment in operation.aircraft_assignments.select_related("drone")
+        if (registration := assignment.drone.faa_registration_number.strip())
+    }
+
+
+def _canonicalize_structured_facts(
+    package: GeneratedConopsPackage,
+    operation,
+) -> None:
+    """Canonicalize narrow, database-owned facts without rewriting prose."""
+    registrations = _assigned_registration_lookup(operation)
+    coordinates = tuple(
+        str(value)
+        for value in (
+            operation.location_latitude,
+            operation.location_longitude,
+        )
+        if value is not None
+    )
+
+    def canonicalize(text: str) -> str:
+        def registration_replacement(match):
+            group_name = (
+                "registration"
+                if match.group("registration")
+                else "registered_as"
+            )
+            supplied = match.group(group_name)
+            canonical = registrations.get(supplied.casefold())
+            if canonical is None:
+                return match.group(0)
+            start = match.start(group_name) - match.start()
+            end = match.end(group_name) - match.start()
+            return match.group(0)[:start] + canonical + match.group(0)[end:]
+
+        text = AIRCRAFT_REGISTRATION_PATTERN.sub(
+            registration_replacement,
+            text,
+        )
+
+        def coordinate_replacement(match):
+            generated = Decimal(match.group(0))
+            for stored in coordinates:
+                if abs(generated - Decimal(stored)) <= COORDINATE_TOLERANCE:
+                    return stored
+            return match.group(0)
+
+        return COORDINATE_PATTERN.sub(coordinate_replacement, text)
+
+    package.description_of_operations = canonicalize(
+        package.description_of_operations
+    )
+    for section in package.sections:
+        section.content = canonicalize(section.content)
+
+
+def _ensure_operation_reference_coordinates(
+    package: GeneratedConopsPackage,
+    operation,
+) -> None:
+    """Insert one canonical operation-reference sentence into Section 2."""
+    has_reference = (
+        operation.location_latitude is None
+        or operation.location_longitude is None
+    ) is False
+    has_launch = (
+        operation.launch_latitude is None
+        or operation.launch_longitude is None
+    ) is False
+    if not has_reference and not has_launch:
+        return
+
+    section = next(
+        (
+            item
+            for item in package.sections
+            if item.key == "operational-area-airspace"
+        ),
+        None,
+    )
+    if section is None:
+        return
+
+    retained = []
+    for sentence in re.split(r"(?<=[.!?])\s+", section.content.strip()):
+        if not sentence.strip():
+            continue
+        coordinate_role = re.search(
+            r"\b(?:operation\s+reference\s+(?:point|coordinates?)|"
+            r"launch\s+(?:site|location|point|coordinates?))\b",
+            sentence,
+            re.IGNORECASE,
+        )
+        if not coordinate_role or not COORDINATE_PATTERN.search(sentence):
+            retained.append(sentence.strip())
+
+    reference_sentence = ""
+    if has_reference:
+        reference_sentence = (
+            "The operation reference point is latitude "
+            f"{operation.location_latitude}, longitude "
+            f"{operation.location_longitude}."
+        )
+    launch_sentence = ""
+    if has_launch:
+        launch_sentence = (
+            "The launch location is latitude "
+            f"{operation.launch_latitude}, longitude "
+            f"{operation.launch_longitude}."
+        )
+    section.content = "\n\n".join(
+        part
+        for part in (
+            " ".join(retained),
+            reference_sentence,
+            launch_sentence,
+        )
+        if part
+    )
+
+
+def _ensure_operations_over_people_avoided(
+    package: GeneratedConopsPackage,
+    operation,
+) -> None:
+    """Insert the authoritative avoided-over-people limitation once."""
+    if operation.operations_over_people != "avoided":
+        return
+
+    section = next(
+        (
+            item
+            for item in package.sections
+            if item.key == "flight-envelope-limitations"
+        ),
+        None,
+    )
+    if section is None:
+        return
+
+    existing = section.content.replace(
+        OPERATIONS_OVER_PEOPLE_AVOIDED,
+        " ",
+    ).strip()
+    section.content = "\n\n".join(
+        part
+        for part in (existing, OPERATIONS_OVER_PEOPLE_AVOIDED)
+        if part
+    )
+
+
+def _ensure_additional_operational_information(
+    package: GeneratedConopsPackage,
+    operation,
+) -> None:
+    """Ensure intentional additional planning information is not omitted."""
+    information = (operation.additional_operational_information or "").strip()
+    if not information:
+        return
+    if any(
+        information in section.content
+        for section in package.sections
+    ):
+        return
+
+    normalized = information.casefold()
+    if "atc" in normalized:
+        target_key = "airspace-atc-coordination"
+    elif any(
+        term in normalized
+        for term in ("risk control", "mitigation", "hazard", "safety control")
+    ):
+        target_key = "operational-risk-controls"
+    else:
+        target_key = "operational-overview"
+
+    section = next(
+        (item for item in package.sections if item.key == target_key),
+        None,
+    )
+    if section is not None:
+        section.content = (
+            f"{section.content.strip()}\n\n"
+            "Additional Operational Information / Controls\n"
+            f"{information}"
+        ).strip()
+
+
+def _source_fidelity_requirements(operation):
+    exact_identifiers = []
+    for value in (
+        operation.atc_facility_name,
+        operation.atc_phone,
+        operation.atc_frequency,
+    ):
+        value = (value or "").strip()
+        if value:
+            exact_identifiers.append(value)
+
+    narrative_fields = (
+        "operation_description",
+        "operational_boundary_description",
+        "containment_notes",
+        "ground_environment_other",
+        "ground_risk_mitigation",
+        "air_risk_mitigation",
+        "crewed_aircraft_conflict_response",
+        "crowd_mitigation",
+        "additional_operational_information",
+        "safety_features_notes",
+        "lost_link_actions",
+        "flyaway_actions",
+        "emergency_response_plan",
+        "emergency_landing_areas",
+        "aircraft_failure_actions",
+        "injury_or_property_damage_actions",
+        "incident_reporting_procedure",
+        "termination_conditions",
+        "atc_checkin_procedure",
+        "atc_deviation_triggers",
+        "communications_failure_actions",
+        "weather_go_nogo",
+        "night_lighting_description",
+        "crew_briefing_procedure",
+    )
+    narrative_text = "\n".join(
+        getattr(operation, field_name, "") or ""
+        for field_name in narrative_fields
+    )
+    exact_identifiers.extend(
+        match.group(0)
+        for match in re.finditer(
+            r"\b[A-Z0-9]{2,8}\s+ATC\b",
+            narrative_text,
+        )
+    )
+    exact_identifiers.extend(
+        match.group(0)
+        for match in re.finditer(
+            r"\b\d{4}-P\d{3}-[A-Z]{2,4}-\d{4,8}\b",
+            narrative_text,
+        )
+    )
+    exact_identifiers.extend(
+        match.group(0)
+        for match in re.finditer(
+            r"\b(?:K[A-Z]{3}|N\d{1,5}[A-Z]{0,2})\b",
+            narrative_text,
+        )
+    )
+    exact_identifiers.extend(
+        match.group(0)
+        for match in re.finditer(
+            r"(?<!\d)[+-]?\d{1,3}\.\d{4,}(?!\d)",
+            narrative_text,
+        )
+    )
+    exact_identifiers.extend(
+        match.group(0)
+        for match in re.finditer(
+            r"(?<!\w)(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}(?!\w)",
+            narrative_text,
+        )
+    )
+    exact_identifiers.extend(
+        match.group(0)
+        for match in re.finditer(
+            r"\b\d{3}\.\d{1,3}\s*MHz\b",
+            narrative_text,
+            re.IGNORECASE,
+        )
+    )
+    exact_identifiers.extend(
+        match.group(1)
+        for match in re.finditer(
+            r"\b(\d+(?:\.\d+)?)\s*(?:feet|foot|ft\.?|mph|knots?|"
+            r"nautical miles?|NM)\b",
+            narrative_text,
+            re.IGNORECASE,
+        )
+    )
+
+    return tuple(dict.fromkeys(exact_identifiers))
+
+
+def _validate_discrete_source_fidelity(
+    package: GeneratedConopsPackage,
+    operation,
+) -> None:
+    generated_text = "\n".join(
+        [package.description_of_operations]
+        + [section.content for section in package.sections]
+    )
+
+    expected_reference = (
+        operation.location_latitude,
+        operation.location_longitude,
+    )
+    reference_role = (
+        r"(?:\b(?:the\s+)?(?:operation\s+)?reference\s+"
+        r"(?:point|coordinates?)\b|"
+        r"\b(?:the\s+)?operation\s+is\s+centered\s+at\b)"
+    )
+    reference_pair_pattern = re.compile(
+        reference_role
+        + rf"(?:(?![.!?]\s).){{0,80}}?(?:latitude\s*)?"
+        rf"(?P<latitude>{COORDINATE_PATTERN.pattern})"
+        rf"(?:(?![.!?]\s).){{0,40}}?(?:longitude\s*)?"
+        rf"(?P<longitude>{COORDINATE_PATTERN.pattern})",
+        re.IGNORECASE,
+    )
+    for match in reference_pair_pattern.finditer(generated_text):
+        for label, expected in zip(
+            ("latitude", "longitude"),
+            expected_reference,
+        ):
+            if expected is None:
+                continue
+            supplied = Decimal(match.group(label))
+            if abs(supplied - Decimal(str(expected))) > COORDINATE_TOLERANCE:
+                raise OpenAIConopsError(
+                    "The generated CONOPS substituted a different operation "
+                    f"reference {label}. No reviewed content was changed."
+                )
+
+    altitude = operation.maximum_planned_altitude_agl
+    if altitude is not None and not re.search(
+        rf"\b{altitude}\s*(?:feet|ft\.?)\s+AGL\b",
+        generated_text,
+        re.IGNORECASE,
+    ):
+        raise OpenAIConopsError(
+            "The generated CONOPS changed or omitted the requested maximum "
+            "altitude. No reviewed content was changed."
+        )
+
+    assigned_registrations = _assigned_registration_lookup(operation)
+    mentioned_registrations = {
+        registration
+        for match in AIRCRAFT_REGISTRATION_PATTERN.finditer(generated_text)
+        for registration in (
+            match.group("registration") or match.group("registered_as"),
+        )
+    }
+    unexpected_registrations = {
+        registration
+        for registration in mentioned_registrations
+        if registration.casefold() not in assigned_registrations
+    }
+    if unexpected_registrations:
+        raise OpenAIConopsError(
+            "The generated CONOPS substituted an aircraft FAA registration "
+            "that is not assigned to this operation: "
+            + ", ".join(sorted(unexpected_registrations))
+            + ". No reviewed content was changed."
+        )
+
+    month_names = (
+        "January|February|March|April|May|June|July|August|September|"
+        "October|November|December"
+    )
+    for label, value in (
+        ("operation start date", operation.start_date),
+        ("operation end date", operation.end_date),
+    ):
+        if value is None:
+            continue
+        date_patterns = (
+            re.escape(value.isoformat()),
+            rf"\b(?:{month_names})\s+0?{value.day},\s+{value.year}\b",
+            rf"\b0?{value.month}/0?{value.day}/{value.year}\b",
+        )
+        if not any(
+            re.search(pattern, generated_text, re.IGNORECASE)
+            for pattern in date_patterns
+        ):
+            raise OpenAIConopsError(
+                f"The generated CONOPS changed or omitted the {label}. "
+                "No reviewed content was changed."
+            )
 
 
 def _validate_geometry_source_fidelity(
@@ -564,32 +1097,60 @@ def _validate_geometry_source_fidelity(
     )
     normalized = generated_text.casefold()
 
-    radius = (
-        operation.get_dronezone_radius_display()
-        if operation.dronezone_radius
-        else ""
-    )
-    if radius and radius.casefold() not in normalized:
-        raise OpenAIConopsError(
-            "The generated CONOPS did not preserve the stored DroneZone "
-            "Requested Radius. No reviewed content was changed."
-        )
-
-    if operation.dronezone_radius == "blanket_wide_area" and re.search(
-        r"\b\d+(?:\.\d+)?\s*(?:nautical\s*miles?|nm)\s+radius\b",
+    number = r"\d+(?:\.\d+)?|\d+\s*/\s*\d+|\d+\s*-\s*\d+"
+    radius_mentions = re.findall(
+        rf"\bradius\b[^.\n]{{0,35}}?\b({number})\s*"
+        rf"(?:nautical\s*miles?|nm)\b|\b({number})\s*"
+        rf"(?:nautical\s*miles?|nm)\b[^.\n]{{0,15}}\bradius\b",
         normalized,
-    ):
+    )
+
+    def radius_value(raw_value):
+        compact = re.sub(r"\s+", "", raw_value)
+        if "/" in compact:
+            numerator, denominator = compact.split("/", 1)
+            return (Decimal(numerator) / Decimal(denominator),)
+        if "-" in compact:
+            lower, upper = compact.split("-", 1)
+            return (Decimal(lower), Decimal(upper))
+        return (Decimal(compact),)
+
+    mentioned_values = [
+        radius_value(first or second)
+        for first, second in radius_mentions
+    ]
+    expected_radius_values = {
+        "0.1_nm": (Decimal("0.1"),),
+        "0.25_nm": (Decimal("0.25"),),
+        "0.5_nm": (Decimal("0.5"),),
+        "0.75_nm": (Decimal("0.75"),),
+        "1_nm": (Decimal("1"),),
+        "1_2_nm": (Decimal("1"), Decimal("2")),
+        "2_3_nm": (Decimal("2"), Decimal("3")),
+    }
+
+    if operation.dronezone_radius == "blanket_wide_area" and mentioned_values:
         raise OpenAIConopsError(
             "The generated CONOPS invented a numeric radius for a Blanket "
             "Area / Wide Area request. No reviewed content was changed."
         )
-
-    if (
-        operation.operation_area_type == "multiple_sites"
-        and "multiple sites" not in normalized
+    expected_radius = expected_radius_values.get(operation.dronezone_radius)
+    if expected_radius and any(
+        value != expected_radius
+        for value in mentioned_values
     ):
         raise OpenAIConopsError(
-            "The generated CONOPS did not preserve the Multiple Sites "
+            "The generated CONOPS substituted a different numeric DroneZone "
+            "Requested Radius. No reviewed content was changed."
+        )
+
+    if operation.operation_area_type == "multiple_sites" and re.search(
+        r"\b(?:single|one)\s+(?:fixed\s+)?(?:operating\s+)?site\b|"
+        r"\bfixed-radius site\b|\bsingle fixed launch (?:point|site)\b",
+        normalized,
+    ):
+        raise OpenAIConopsError(
+            "The generated CONOPS contradicted the Multiple Sites "
             "operational-area geometry. No reviewed content was changed."
         )
 
@@ -597,24 +1158,82 @@ def _validate_geometry_source_fidelity(
         ("launch", operation.launch_location),
         ("recovery", operation.recovery_location),
     ):
-        if (value or "").strip().casefold() == "varies" and not re.search(
-            rf"\b{label}\b[^.\n]{{0,80}}\bvaries\b",
-            normalized,
-        ):
-            raise OpenAIConopsError(
-                f"The generated CONOPS did not preserve that the {label} "
-                "location varies. No reviewed content was changed."
+        if (value or "").strip().casefold() == "varies":
+            fixed_location = re.search(
+                rf"\b(?:fixed|single|specific|designated|primary)\s+{label}\b|"
+                rf"\b{label}\s+(?:site|location|point)\b[^.\n]{{0,40}}"
+                rf"\b(?:fixed|specific|designated)\b",
+                normalized,
             )
+            coordinate_location = any(
+                COORDINATE_PATTERN.search(sentence)
+                for sentence in re.split(
+                    r"(?<=[.!?])\s+|\n+",
+                    generated_text,
+                )
+                if re.search(
+                    rf"\b{label}\s+(?:site|location|point|coordinates?)\b",
+                    sentence,
+                    re.IGNORECASE,
+                )
+                and not re.search(
+                    rf"\bnot\s+(?:a\s+)?{label}\b",
+                    sentence,
+                    re.IGNORECASE,
+                )
+            )
+            if fixed_location or coordinate_location:
+                raise OpenAIConopsError(
+                    f"The generated CONOPS contradicted that the {label} "
+                    "location varies. No reviewed content was changed."
+                )
 
-    if re.search(
-        r"\blaunch (?:site|location)\b[^.\n]{0,50}"
-        r"\b(?:at latitude|coordinates?)\b",
-        normalized,
-    ):
-        raise OpenAIConopsError(
-            "The generated CONOPS treated operation reference coordinates "
-            "as launch coordinates. No reviewed content was changed."
+    reference_coordinates = tuple(
+        Decimal(str(value))
+        for value in (
+            operation.location_latitude,
+            operation.location_longitude,
         )
+        if value is not None
+    )
+    if len(reference_coordinates) == 2:
+        for context in (
+            sentence
+            for sentence in re.split(
+                r"(?<=[.!?])\s+|\n+",
+                generated_text,
+            )
+            if re.search(
+                r"\b(?:launch|recovery)\s+"
+                r"(?:site|location|point|coordinates?)\b",
+                sentence,
+                re.IGNORECASE,
+            )
+        ):
+            normalized_context = context.casefold()
+            if re.search(
+                r"\bnot\s+(?:a\s+)?(?:launch|recovery)\b",
+                normalized_context,
+            ):
+                continue
+            mentioned = tuple(
+                Decimal(match.group(0))
+                for match in COORDINATE_PATTERN.finditer(context)
+            )
+            pair_matches = len(mentioned) >= 2 and all(
+                abs(supplied - expected) <= COORDINATE_TOLERANCE
+                for supplied, expected in zip(mentioned[:2], reference_coordinates)
+            )
+            single_matches = len(mentioned) == 1 and any(
+                abs(mentioned[0] - expected) <= COORDINATE_TOLERANCE
+                for expected in reference_coordinates
+            )
+            if pair_matches or single_matches:
+                raise OpenAIConopsError(
+                    "The generated CONOPS treated operation reference "
+                    "coordinates as launch or recovery coordinates. "
+                    "No reviewed content was changed."
+                )
 
 
 def _record_generation_error(
@@ -713,20 +1332,39 @@ def generate_ai_conops(
             api_key=api_key,
             timeout=timeout,
         )
-        required_exact_phrases = tuple(
-            value.strip()
-            for value in (
-                approval.operation.atc_facility_name,
-                approval.operation.atc_checkin_procedure,
-                approval.operation.emergency_response_plan,
-            )
-            if value and value.strip()
+        _ensure_crewed_aircraft_response(
+            package,
+            approval.operation,
+        )
+        _ensure_emergency_airspace_conflict_reference(package)
+        _ensure_operations_over_people_avoided(
+            package,
+            approval.operation,
+        )
+        _ensure_additional_operational_information(
+            package,
+            approval.operation,
+        )
+        _canonicalize_structured_facts(
+            package,
+            approval.operation,
+        )
+        required_exact_identifiers = _source_fidelity_requirements(
+            approval.operation
         )
         returned = _validate_package(
             package,
-            required_exact_phrases=required_exact_phrases,
+            required_exact_identifiers=required_exact_identifiers,
+        )
+        _validate_discrete_source_fidelity(
+            package,
+            approval.operation,
         )
         _validate_geometry_source_fidelity(
+            package,
+            approval.operation,
+        )
+        _ensure_operation_reference_coordinates(
             package,
             approval.operation,
         )

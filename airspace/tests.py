@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, PropertyMock, patch
 from datetime import date
 from io import BytesIO
 import json
@@ -19,18 +19,32 @@ from .ai_conops import (
     GeneratedConopsSection,
     OpenAIConopsError,
     _operation_payload,
+    _ensure_additional_operational_information,
+    _canonicalize_structured_facts,
+    _ensure_crewed_aircraft_response,
+    _ensure_emergency_airspace_conflict_reference,
+    _ensure_operation_reference_coordinates,
+    _ensure_operations_over_people_avoided,
+    _source_fidelity_requirements,
     _system_prompt,
+    _validate_discrete_source_fidelity,
     _validate_geometry_source_fidelity,
     _validate_package,
+    EMERGENCY_AIRSPACE_CONFLICT_REFERENCE,
     generate_ai_conops,
 )
 from .conops import (
     CONOPS_DEFINITIONS,
+    OPERATIONS_OVER_PEOPLE_AVOIDED,
     _airspace_atc_coordination,
+    _area_and_containment,
+    _crewed_aircraft_conflict_response,
     _dates_location_airspace,
     _emergency_procedures,
     _flight_envelope_limitations,
     _operation_overview,
+    _operational_risk_controls,
+    _operations_over_people,
     _see_and_avoid,
     get_or_create_application,
 )
@@ -38,6 +52,8 @@ from .forms import OperationsPlanningForm
 from .models import (
     Airport,
     ApprovalType,
+    CREWED_AIRCRAFT_CONFLICT_RESPONSE_NO_VO,
+    CREWED_AIRCRAFT_CONFLICT_RESPONSE_VO,
     ConopsSection,
     OperationAircraft,
     OperationApproval,
@@ -49,7 +65,11 @@ from .services import (
     build_waiver_description_prompt,
     search_openstreetmap_address,
 )
-from .views import _operation_timezone_display, _submission_workflow_steps
+from .views import (
+    _invalidate_operation_conops,
+    _operation_timezone_display,
+    _submission_workflow_steps,
+)
 
 User = get_user_model()
 
@@ -78,6 +98,107 @@ class OperationsPlanningTests(TestCase):
         data.update(overrides)
         return data
 
+    def test_new_record_has_standard_vo_conflict_response_default(self):
+        operation = OperationsPlanning(
+            user=self.owner,
+            operation_title="New default test",
+            start_date=date.today(),
+        )
+        self.assertEqual(
+            operation.crewed_aircraft_conflict_response,
+            CREWED_AIRCRAFT_CONFLICT_RESPONSE_VO,
+        )
+
+    def test_form_uses_vo_or_no_vo_standard_and_allows_custom_text(self):
+        with_vo = OperationsPlanningForm(
+            data=self.operation_form_data(has_visual_observer="on"),
+            user=self.owner,
+        )
+        self.assertTrue(with_vo.is_valid(), with_vo.errors)
+        self.assertEqual(
+            with_vo.cleaned_data["crewed_aircraft_conflict_response"],
+            CREWED_AIRCRAFT_CONFLICT_RESPONSE_VO,
+        )
+
+        without_vo = OperationsPlanningForm(
+            data=self.operation_form_data(),
+            user=self.owner,
+        )
+        self.assertTrue(without_vo.is_valid(), without_vo.errors)
+        self.assertEqual(
+            without_vo.cleaned_data["crewed_aircraft_conflict_response"],
+            CREWED_AIRCRAFT_CONFLICT_RESPONSE_NO_VO,
+        )
+
+        custom = (
+            "The RPIC will immediately land and yield right of way to all "
+            "crewed aircraft."
+        )
+        edited = OperationsPlanningForm(
+            data=self.operation_form_data(
+                crewed_aircraft_conflict_response=custom,
+            ),
+            user=self.owner,
+        )
+        self.assertTrue(edited.is_valid(), edited.errors)
+        self.assertEqual(
+            edited.cleaned_data["crewed_aircraft_conflict_response"],
+            custom,
+        )
+
+    def test_no_vo_rejects_custom_visual_observer_reference(self):
+        form = OperationsPlanningForm(
+            data=self.operation_form_data(
+                crewed_aircraft_conflict_response=(
+                    "The Visual Observer will report traffic to the RPIC."
+                ),
+            ),
+            user=self.owner,
+        )
+        self.assertFalse(form.is_valid())
+        self.assertIn("crewed_aircraft_conflict_response", form.errors)
+
+    def test_changing_conflict_response_marks_generated_conops_stale(self):
+        approval_type = ApprovalType.objects.create(
+            code="conflict-response-stale-test",
+            category="airspace",
+            regulation="§107.41",
+            name="Controlled Airspace Authorization",
+        )
+        approval = OperationApproval.objects.create(
+            operation=self.operation,
+            approval_type=approval_type,
+        )
+        application = get_or_create_application(approval, self.owner)
+        application.conops_source_updated_at = timezone.now()
+        application.save(
+            update_fields=["conops_source_updated_at", "updated_at"]
+        )
+        self.client.force_login(self.owner)
+
+        response = self.client.post(
+            reverse(
+                "airspace:operations_planning_edit",
+                kwargs={"pk": self.operation.pk},
+            ),
+            self.operation_form_data(
+                operation_title=self.operation.operation_title,
+                crewed_aircraft_conflict_response=(
+                    "The RPIC will land and yield to crewed aircraft."
+                ),
+            ),
+        )
+
+        self.assertRedirects(
+            response,
+            reverse(
+                "airspace:operations_planning_detail",
+                kwargs={"pk": self.operation.pk},
+            ),
+        )
+        application.refresh_from_db()
+        self.assertIsNone(application.conops_source_updated_at)
+
     def test_selected_pilot_certificate_is_saved_on_create(self):
         self.client.force_login(self.owner)
 
@@ -101,6 +222,73 @@ class OperationsPlanningTests(TestCase):
         )
         self.assertEqual(created.pilot_profile, self.owner_profile)
         self.assertEqual(created.pilot_cert_manual, "OWNER-FAA-123")
+
+    def test_multiple_sites_blanket_area_creates_without_corridor_dimensions(self):
+        form = OperationsPlanningForm(
+            data=self.operation_form_data(
+                operation_area_type="multiple_sites",
+                dronezone_radius="blanket_wide_area",
+                launch_location="Varies",
+                recovery_location="Varies",
+            ),
+            user=self.owner,
+        )
+
+        self.assertTrue(form.is_valid(), form.errors)
+        operation = form.save()
+        self.assertEqual(operation.operation_area_type, "multiple_sites")
+        self.assertIsNone(operation.corridor_length_ft)
+        self.assertIsNone(operation.corridor_width_ft)
+
+    def test_defined_site_creates_without_corridor_dimensions(self):
+        form = OperationsPlanningForm(
+            data=self.operation_form_data(operation_area_type="site"),
+            user=self.owner,
+        )
+
+        self.assertTrue(form.is_valid(), form.errors)
+        operation = form.save()
+        self.assertEqual(operation.operation_area_type, "site")
+        self.assertIsNone(operation.corridor_length_ft)
+        self.assertIsNone(operation.corridor_width_ft)
+
+    def test_corridor_validation_uses_normal_form_errors(self):
+        form = OperationsPlanningForm(
+            data=self.operation_form_data(operation_area_type="corridor"),
+            user=self.owner,
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("corridor_length_ft", form.errors)
+        self.assertIn("corridor_width_ft", form.errors)
+
+    def test_corridor_dimensions_are_exposed_and_saved(self):
+        form = OperationsPlanningForm(
+            data=self.operation_form_data(
+                operation_area_type="corridor",
+                corridor_length_ft="5280",
+                corridor_width_ft="500",
+            ),
+            user=self.owner,
+        )
+
+        self.assertIn("corridor_length_ft", form.fields)
+        self.assertIn("corridor_width_ft", form.fields)
+        self.assertTrue(form.is_valid(), form.errors)
+        operation = form.save()
+        self.assertEqual(operation.corridor_length_ft, 5280)
+        self.assertEqual(operation.corridor_width_ft, 500)
+
+    def test_existing_corridor_record_loads_in_edit_form(self):
+        self.operation.operation_area_type = "corridor"
+        self.operation.corridor_length_ft = 2640
+        self.operation.corridor_width_ft = 300
+        self.operation.save()
+
+        form = OperationsPlanningForm(instance=self.operation, user=self.owner)
+
+        self.assertEqual(form["corridor_length_ft"].value(), 2640)
+        self.assertEqual(form["corridor_width_ft"].value(), 300)
 
     def test_edit_form_renders_selected_pilot_current_certificate(self):
         self.operation.pilot_profile = self.owner_profile
@@ -424,6 +612,274 @@ class ControlledAirspaceConopsWordingTests(TestCase):
             _see_and_avoid(self.approval),
         )
 
+    def test_standard_crewed_aircraft_response_tracks_vo_selection(self):
+        self.operation.has_visual_observer = True
+        self.operation.crewed_aircraft_conflict_response = (
+            CREWED_AIRCRAFT_CONFLICT_RESPONSE_VO
+        )
+        with_vo = _crewed_aircraft_conflict_response(self.operation)
+        self.assertIn("Visual Observer continues reporting", with_vo)
+        self.assertIn("yield right of way", with_vo)
+
+        self.operation.has_visual_observer = False
+        self.operation.crewed_aircraft_conflict_response = (
+            CREWED_AIRCRAFT_CONFLICT_RESPONSE_NO_VO
+        )
+        without_vo = _crewed_aircraft_conflict_response(self.operation)
+        self.assertNotIn("Visual Observer", without_vo)
+        self.assertIn("maintain separation and yield right of way", without_vo)
+        form = OperationsPlanningForm(
+            data={
+                "status": OperationsPlanning.Status.DRAFT,
+                "operation_title": "No VO operation",
+                "start_date": date.today().isoformat(),
+                "operation_area_type": "site",
+            },
+            user=self.user,
+        )
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_section_four_contains_authoritative_stored_response(self):
+        stored = (
+            "Custom stored response: descend, reposition, land, report the "
+            "aircraft position and trajectory, resolve the conflict, and "
+            "yield right of way."
+        )
+        self.operation.crewed_aircraft_conflict_response = stored
+        self.operation.save(
+            update_fields=["crewed_aircraft_conflict_response"]
+        )
+
+        self.assertIn(stored, _see_and_avoid(self.approval))
+        payload = _operation_payload(self.approval)
+        self.assertEqual(
+            payload["operation"]["crewed_aircraft_conflict_response"],
+            stored,
+        )
+
+        package = self._geometry_package("Valid generated overview.")
+        see_and_avoid = next(
+            section
+            for section in package.sections
+            if section.key == "see-and-avoid"
+        )
+        see_and_avoid.content = "AI-generated shortened response."
+        _ensure_crewed_aircraft_response(package, self.operation)
+        self.assertEqual(
+            see_and_avoid.content,
+            "AI-generated shortened response.\n\n" + stored,
+        )
+
+    def test_section_four_removes_duplicate_response_actions(self):
+        stored = CREWED_AIRCRAFT_CONFLICT_RESPONSE_VO
+        self.operation.has_visual_observer = True
+        self.operation.crewed_aircraft_conflict_response = stored
+        package = self._geometry_package("Valid generated overview.")
+        section = next(
+            item for item in package.sections if item.key == "see-and-avoid"
+        )
+        section.content = (
+            "A Visual Observer will continuously monitor the operating area "
+            "for crewed aircraft. FlightAware is used as a supplemental "
+            "situational-awareness tool and does not replace visual scanning, "
+            "see-and-avoid responsibilities, or the RPIC's obligation to yield "
+            "right of way to crewed aircraft. Upon detecting a crewed aircraft, "
+            "the RPIC will descend, reposition, or land to resolve the conflict. "
+            + stored
+        )
+
+        _ensure_crewed_aircraft_response(package, self.operation)
+
+        self.assertEqual(section.content.count(stored), 1)
+        self.assertEqual(section.content.casefold().count("descend"), 1)
+        self.assertIn("Visual Observer will continuously monitor", section.content)
+        self.assertIn("FlightAware is used as a supplemental", section.content)
+
+    def test_no_vo_and_custom_responses_remain_authoritative(self):
+        self.operation.has_visual_observer = False
+        self.operation.crewed_aircraft_conflict_response = (
+            CREWED_AIRCRAFT_CONFLICT_RESPONSE_NO_VO
+        )
+        package = self._geometry_package("Valid generated overview.")
+        section = next(
+            item for item in package.sections if item.key == "see-and-avoid"
+        )
+        section.content = "The RPIC will scan continuously for crewed aircraft."
+        _ensure_crewed_aircraft_response(package, self.operation)
+        self.assertNotIn("Visual Observer", section.content)
+        self.assertEqual(
+            section.content.count(CREWED_AIRCRAFT_CONFLICT_RESPONSE_NO_VO),
+            1,
+        )
+
+        custom = "Custom authoritative conflict response text."
+        self.operation.crewed_aircraft_conflict_response = custom
+        _ensure_crewed_aircraft_response(package, self.operation)
+        self.assertTrue(section.content.endswith(custom))
+
+    def test_additional_information_is_routed_and_preserved(self):
+        information = (
+            "RPIC has flown sUAS operations at this location for 11 events "
+            "over five years, including March 2026 under FAA Form 7711-1 "
+            "2026-P107-WSA-07645. This application mirrors parameters of "
+            "that earlier approved waiver."
+        )
+        self.operation.additional_operational_information = information
+        package = self._geometry_package("Valid generated overview.")
+
+        _ensure_additional_operational_information(package, self.operation)
+
+        overview = next(
+            item for item in package.sections if item.key == "operational-overview"
+        )
+        self.assertIn(information, overview.content)
+        self.assertIn("2026-P107-WSA-07645", overview.content)
+        self.assertNotIn("current application is approved", overview.content)
+        self.assertIn(
+            "2026-P107-WSA-07645",
+            _source_fidelity_requirements(self.operation),
+        )
+        prompt = _system_prompt()
+        self.assertIn("must remain historical context", prompt)
+        self.assertIn("special provisions must not be presented as current", prompt.casefold())
+
+    def test_additional_atc_history_remains_historical_and_blank_adds_nothing(self):
+        package = self._geometry_package("Valid generated overview.")
+        original = [item.content for item in package.sections]
+        self.operation.additional_operational_information = ""
+        _ensure_additional_operational_information(package, self.operation)
+        self.assertEqual([item.content for item in package.sections], original)
+
+        history = "The RPIC previously worked with KPOC ATC at this location."
+        self.operation.additional_operational_information = history
+        _ensure_additional_operational_information(package, self.operation)
+        atc = next(
+            item
+            for item in package.sections
+            if item.key == "airspace-atc-coordination"
+        )
+        self.assertIn(history, atc.content)
+        self.assertNotIn("KPOC ATC has approved", atc.content)
+        self.assertNotIn("coordination has been conducted", atc.content)
+
+    def test_operations_over_people_choices_are_deterministic(self):
+        expected = {
+            "avoided": OPERATIONS_OVER_PEOPLE_AVOIDED,
+            "part_107_compliant": "applicable Part 107 Operations Over People category",
+            "separate_relief": "separate FAA relief or approval",
+            "requires_review": "requires further review",
+        }
+        for value, wording in expected.items():
+            with self.subTest(value=value):
+                self.operation.operations_over_people = value
+                self.assertIn(wording, _operations_over_people(self.operation))
+
+        self.operation.operations_over_people = "avoided"
+        self.operation.crowd_mitigation = "Use controlled spectator barriers."
+        self.assertIn(
+            "Use controlled spectator barriers.",
+            _operations_over_people(self.operation),
+        )
+        self.operation.operations_over_people = ""
+        self.operation.crowd_mitigation = ""
+        self.operation.ground_environment = ["crowd_dense"]
+        payload = _operation_payload(self.approval)
+        self.assertEqual(
+            payload["airspace_standard_procedures"]["operations_over_people"],
+            "",
+        )
+
+    def test_avoided_operations_over_people_is_inserted_exactly_once(self):
+        self.operation.operations_over_people = "avoided"
+        package = self._geometry_package("Valid generated overview.")
+        section = next(
+            item
+            for item in package.sections
+            if item.key == "flight-envelope-limitations"
+        )
+        section.content = (
+            "Generated flight limitations that omit operations over people."
+        )
+
+        _ensure_operations_over_people_avoided(package, self.operation)
+        _ensure_operations_over_people_avoided(package, self.operation)
+
+        self.assertEqual(
+            section.content.count(OPERATIONS_OVER_PEOPLE_AVOIDED),
+            1,
+        )
+        self.assertTrue(section.content.endswith(OPERATIONS_OVER_PEOPLE_AVOIDED))
+
+    def test_other_operations_over_people_choices_are_not_post_processed(self):
+        for value in (
+            "part_107_compliant",
+            "separate_relief",
+            "requires_review",
+        ):
+            with self.subTest(value=value):
+                self.operation.operations_over_people = value
+                package = self._geometry_package("Valid generated overview.")
+                section = next(
+                    item
+                    for item in package.sections
+                    if item.key == "flight-envelope-limitations"
+                )
+                original = section.content
+                _ensure_operations_over_people_avoided(package, self.operation)
+                self.assertEqual(section.content, original)
+
+    def test_boundary_additional_information_and_corridor_reach_context(self):
+        self.operation.operation_area_type = "corridor"
+        self.operation.corridor_length_ft = 1200
+        self.operation.corridor_width_ft = 300
+        self.operation.operational_boundary_description = (
+            "Remain north of Service Road A and outside the runway boundary."
+        )
+        self.operation.additional_operational_information = (
+            "The RPIC has prior experience coordinating with KPOC ATC."
+        )
+        self.operation.save()
+
+        area = _area_and_containment(self.approval)
+        self.assertIn("1,200 feet long by 300 feet wide", area)
+        self.assertIn("Remain north of Service Road A", area)
+        self.assertIn(
+            self.operation.additional_operational_information,
+            _operational_risk_controls(self.approval),
+        )
+        payload = _operation_payload(self.approval)
+        self.assertEqual(
+            payload["operation_semantics"]["corridor_dimensions"],
+            {"length_ft": 1200, "width_ft": 300},
+        )
+        self.assertEqual(
+            payload["operation"]["additional_operational_information"],
+            self.operation.additional_operational_information,
+        )
+        prompt = _system_prompt()
+        self.assertIn("must remain historical context", prompt)
+        self.assertNotIn("Coordination with KPOC ATC has been conducted", area)
+
+        self.operation.operation_area_type = "site"
+        self.assertNotIn("1,200 feet", _area_and_containment(self.approval))
+
+    def test_blank_optional_context_does_not_fabricate_boundaries(self):
+        self.operation.operational_boundary_description = ""
+        self.operation.additional_operational_information = ""
+        payload = _operation_payload(self.approval)
+
+        self.assertEqual(
+            payload["operation_semantics"]["operational_boundary_description"],
+            "",
+        )
+        self.assertNotIn(
+            "Operational boundaries:",
+            _area_and_containment(self.approval),
+        )
+        model_fields = {field.name for field in OperationsPlanning._meta.fields}
+        self.assertNotIn("prior_waiver", model_fields)
+        self.assertNotIn("previous_authorization", model_fields)
+
     def test_description_prompt_preserves_tracking_service_and_disclaimer(self):
         prompt = build_waiver_description_prompt(self.operation)
 
@@ -456,6 +912,28 @@ class ControlledAirspaceConopsWordingTests(TestCase):
             prompt,
         )
         self.assertIn("Do not say that no direct ATC procedure exists", prompt)
+
+    def test_atc_contact_values_do_not_invent_current_coordination(self):
+        self.operation.atc_facility_name = "KPOC ATC"
+        self.operation.atc_frequency = "123.45 MHz"
+        self.operation.atc_phone = "909-555-0100"
+        self.operation.atc_checkin_procedure = ""
+        self.operation.additional_operational_information = (
+            "The RPIC has prior experience coordinating with KPOC ATC."
+        )
+        self.operation.save()
+
+        text = _airspace_atc_coordination(self.approval)
+        self.assertIn("KPOC ATC", text)
+        self.assertIn("123.45 MHz", text)
+        self.assertIn("909-555-0100", text)
+        self.assertNotIn("must call", text.casefold())
+        self.assertNotIn("must monitor", text.casefold())
+        self.assertNotIn("coordination has been conducted", text.casefold())
+        self.assertIn(
+            self.operation.additional_operational_information,
+            _operational_risk_controls(self.approval),
+        )
 
     def test_user_entered_year_round_language_is_preserved(self):
         year_round_text = (
@@ -496,48 +974,369 @@ class ControlledAirspaceConopsWordingTests(TestCase):
         self.assertIn("does not request relief from any other Part 107 requirement", prompt)
         self.assertIn("Never substitute or invent FlightAware", prompt)
         self.assertIn(
-            "Preserve user-entered emergency and ATC notification procedures exactly",
+            "Preserve every substantive action in user-entered emergency and ATC",
             prompt,
         )
         self.assertIn("Preserve user-entered facility identifiers exactly", prompt)
 
-    def test_generated_package_requires_exact_lsv_atc_procedure(self):
-        procedure = "If required during an emergency, notify LSV ATC."
+    def _package_with_emergency_text(self, emergency_text):
         sections = [
             GeneratedConopsSection(
                 key=definition.key,
                 title=definition.title,
                 content=(
-                    procedure
+                    emergency_text
                     if definition.key == "emergency-procedures"
                     else f"Content for {definition.key}."
                 ),
             )
             for definition in CONOPS_DEFINITIONS
         ]
-        package = GeneratedConopsPackage(
+        return GeneratedConopsPackage(
             description_of_operations="Controlled-airspace operation.",
             sections=sections,
+        )
+
+    def test_narrative_procedures_allow_professional_rewriting(self):
+        self.operation.emergency_response_plan = (
+            "Immediately land at pre-determined emergency landing zones "
+            "on access roads"
+        )
+        self.operation.flyaway_actions = (
+            "RPIC will attempt to regain control of the aircraft and will "
+            "note location, direction, altitude and speed, and will notify "
+            "LSV ATC if unable to regain control of the aircraft"
+        )
+        exact_identifiers = _source_fidelity_requirements(
+            self.operation
+        )
+        rewritten = self._package_with_emergency_text(
+            "The aircraft will land in preselected emergency areas located "
+            "along access roads. If control cannot be restored, the RPIC "
+            "will contact LSV ATC."
         )
 
         _validate_package(
-            package,
-            required_exact_phrases=(procedure,),
+            rewritten,
+            required_exact_identifiers=exact_identifiers,
         )
 
-        sections[-1].content = (
-            "If required during an emergency, notify Las Vegas Motor "
-            "Speedway ATC."
+    def test_flyaway_procedure_requires_exact_lsv_atc_identifier(self):
+        self.operation.flyaway_actions = (
+            "RPIC will attempt to regain control of the aircraft and will "
+            "note location, direction, altitude and speed, and will notify "
+            "LSV ATC if unable to regain control of the aircraft"
         )
-        expanded = GeneratedConopsPackage(
-            description_of_operations="Controlled-airspace operation.",
-            sections=sections,
+        exact_identifiers = _source_fidelity_requirements(
+            self.operation
         )
-        with self.assertRaises(OpenAIConopsError):
+        expanded = self._package_with_emergency_text(
+            "The RPIC will attempt to regain control while recording the "
+            "aircraft's location, direction, altitude, and speed. If control "
+            "cannot be regained, notify Las Vegas Motor Speedway ATC."
+        )
+
+        with self.assertRaisesRegex(OpenAIConopsError, "LSV ATC"):
             _validate_package(
                 expanded,
-                required_exact_phrases=(procedure,),
+                required_exact_identifiers=exact_identifiers,
             )
+
+    def test_contact_values_embedded_in_narrative_remain_exact(self):
+        self.operation.flyaway_actions = (
+            "Contact LSV ATC on 123.45 MHz at 702-555-0188 and maintain "
+            "the 390 feet AGL RTH limit during a flyaway."
+        )
+        exact_identifiers = _source_fidelity_requirements(self.operation)
+
+        self.assertEqual(
+            exact_identifiers,
+            ("LSV ATC", "702-555-0188", "123.45 MHz", "390"),
+        )
+        for changed in (
+            "Contact LSV ATC on 123.40 MHz at 702-555-0188; limit 390.",
+            "Contact LSV ATC on 123.45 MHz at 702-555-0199; limit 390.",
+            "Contact LSV ATC on 123.45 MHz at 702-555-0188; limit 400.",
+        ):
+            with self.subTest(changed=changed):
+                with self.assertRaises(OpenAIConopsError):
+                    _validate_package(
+                        self._package_with_emergency_text(changed),
+                        required_exact_identifiers=exact_identifiers,
+                    )
+
+    def test_discrete_coordinates_altitude_and_dates_are_strict(self):
+        self.operation.location_latitude = "36.271187"
+        self.operation.location_longitude = "-115.009416"
+        self.operation.maximum_planned_altitude_agl = 400
+        self.operation.start_date = date(2026, 10, 1)
+        self.operation.end_date = date(2027, 12, 31)
+        self.operation.save()
+        valid = self._geometry_package(
+            "Reference coordinates are 36.271187, -115.009416. The requested "
+            "maximum is 400 feet AGL. Operations run October 1, 2026 through "
+            "December 31, 2027."
+        )
+        _validate_discrete_source_fidelity(valid, self.operation)
+
+        replacements = (
+            ("36.271187", "36.271188"),
+            ("400 feet AGL", "300 feet AGL"),
+            ("October 1, 2026", "October 2, 2026"),
+        )
+        for old, new in replacements:
+            with self.subTest(new=new):
+                changed = self._geometry_package(
+                    valid.description_of_operations.replace(old, new)
+                )
+                with self.assertRaises(OpenAIConopsError):
+                    _validate_discrete_source_fidelity(changed, self.operation)
+
+    def test_aircraft_registration_is_optional_but_cannot_be_substituted(self):
+        drone = Drone.objects.create(
+            user=self.user,
+            manufacturer="DJI",
+            model="Mavic 4 Pro",
+            serial_number="SERIAL-REGISTRATION-FACTS",
+            faa_registration_number="faeid42",
+        )
+        OperationAircraft.objects.create(
+            operation=self.operation,
+            drone=drone,
+        )
+        required_facts = (
+            "The requested maximum is 375 feet AGL. The operation begins "
+            f"{self.operation.start_date.isoformat()}. "
+        )
+
+        accepted = (
+            "The assigned aircraft is a DJI Mavic 4 Pro.",
+            "The DJI Mavic 4 Pro has FAA registration faeid42.",
+            "The DJI Mavic 4 Pro has FAA registration FAEID42.",
+            "The assigned Mavic 4 Pro is registered as faeid42.",
+        )
+        for text in accepted:
+            with self.subTest(text=text):
+                _validate_discrete_source_fidelity(
+                    self._geometry_package(required_facts + text),
+                    self.operation,
+                )
+
+        rejected = (
+            "The DJI Mavic 4 Pro has FAA registration faeid43.",
+            "The assigned aircraft has FAA registration N123AB.",
+            "The assigned Mavic 4 Pro is registered as N123AB.",
+        )
+        for text in rejected:
+            with self.subTest(text=text):
+                with self.assertRaises(OpenAIConopsError):
+                    _validate_discrete_source_fidelity(
+                        self._geometry_package(required_facts + text),
+                        self.operation,
+                    )
+
+        canonical = self._geometry_package(
+            required_facts
+            + "The DJI Mavic 4 Pro has FAA registration FAEID42."
+        )
+        _canonicalize_structured_facts(canonical, self.operation)
+        self.assertIn("FAA registration faeid42", canonical.description_of_operations)
+        self.assertNotIn("FAEID42", canonical.description_of_operations)
+
+    def test_coordinate_equivalence_is_numeric_and_canonicalized(self):
+        self.operation.location_latitude = "34.099076"
+        self.operation.location_longitude = "-117.775772"
+        self.operation.save(
+            update_fields=["location_latitude", "location_longitude"]
+        )
+        required = (
+            "The requested maximum is 375 ft AGL. The operation begins "
+            f"{self.operation.start_date.isoformat()}. Reference coordinates "
+            "are 34.0990760, -117.77577200."
+        )
+        package = self._geometry_package(required)
+
+        _validate_discrete_source_fidelity(package, self.operation)
+        _canonicalize_structured_facts(package, self.operation)
+
+        self.assertIn("34.099076, -117.775772", package.description_of_operations)
+
+        changed = self._geometry_package(
+            required.replace("34.0990760", "34.0991760")
+        )
+        with self.assertRaises(OpenAIConopsError):
+            _validate_discrete_source_fidelity(changed, self.operation)
+
+        omitted = self._geometry_package(
+            "The requested maximum is 375 feet AGL. The operation begins "
+            f"{self.operation.start_date.isoformat()}."
+        )
+        _validate_discrete_source_fidelity(omitted, self.operation)
+
+    def test_section_two_gets_one_canonical_operation_reference_point(self):
+        self.operation.location_latitude = "34.099076"
+        self.operation.location_longitude = "-117.775772"
+        package = self._geometry_package("Valid generated overview.")
+        section = next(
+            item
+            for item in package.sections
+            if item.key == "operational-area-airspace"
+        )
+        section.content = (
+            "The mapped area defines the operation. The operation reference "
+            "coordinates are 34.0990760, -117.7757720."
+        )
+
+        _ensure_operation_reference_coordinates(package, self.operation)
+        _ensure_operation_reference_coordinates(package, self.operation)
+
+        canonical = (
+            "The operation reference point is latitude 34.099076, "
+            "longitude -117.775772."
+        )
+        self.assertEqual(section.content.count(canonical), 1)
+        self.assertIn("The mapped area defines the operation.", section.content)
+
+        self.operation.location_longitude = None
+        blank_package = self._geometry_package("Valid generated overview.")
+        blank_section = next(
+            item
+            for item in blank_package.sections
+            if item.key == "operational-area-airspace"
+        )
+        original = blank_section.content
+        _ensure_operation_reference_coordinates(blank_package, self.operation)
+        self.assertEqual(blank_section.content, original)
+
+    def test_launch_and_reference_coordinate_roles_remain_distinct(self):
+        self.operation.location_latitude = "34.099076"
+        self.operation.location_longitude = "-117.775772"
+        self.operation.launch_latitude = "34.092603"
+        self.operation.launch_longitude = "-117.771812"
+        self.operation.save(
+            update_fields=[
+                "location_latitude",
+                "location_longitude",
+                "launch_latitude",
+                "launch_longitude",
+            ]
+        )
+        required = (
+            "The requested maximum is 375 feet AGL. The operation begins "
+            f"{self.operation.start_date.isoformat()}. "
+        )
+        correct_launch = self._geometry_package(
+            required
+            + "The launch site is located at latitude 34.092603, longitude "
+            "-117.771812."
+        )
+        _validate_discrete_source_fidelity(correct_launch, self.operation)
+        _validate_geometry_source_fidelity(correct_launch, self.operation)
+
+        both_roles = self._geometry_package(
+            required
+            + "The launch site is located at latitude 34.092603, longitude "
+            "-117.771812. The operation reference point is latitude "
+            "34.099076, longitude -117.775772. An emergency landing area "
+            "is near 34.090000, -117.770000."
+        )
+        _validate_discrete_source_fidelity(both_roles, self.operation)
+        _validate_geometry_source_fidelity(both_roles, self.operation)
+
+        launch_then_reference_context = self._geometry_package(
+            required
+            + "The launch site is located at latitude 34.092603, longitude "
+            "-117.771812, while the operation reference point identifies the "
+            "overall mapped area. An unrelated supported point is 34.090000, "
+            "-117.770000."
+        )
+        _validate_discrete_source_fidelity(
+            launch_then_reference_context,
+            self.operation,
+        )
+
+        launch_as_reference = self._geometry_package(
+            required
+            + "The operation reference coordinates are 34.092603, "
+            "-117.771812."
+        )
+        with self.assertRaises(OpenAIConopsError):
+            _validate_discrete_source_fidelity(
+                launch_as_reference,
+                self.operation,
+            )
+
+        reference_as_launch = self._geometry_package(
+            required
+            + "The launch coordinates are 34.099076, -117.775772."
+        )
+        with self.assertRaises(OpenAIConopsError):
+            _validate_geometry_source_fidelity(
+                reference_as_launch,
+                self.operation,
+            )
+
+    def test_altitude_unit_and_radius_numeric_equivalence(self):
+        self.operation.maximum_planned_altitude_agl = 75
+        self.operation.dronezone_radius = "0.5_nm"
+        self.operation.save(
+            update_fields=[
+                "maximum_planned_altitude_agl",
+                "dronezone_radius",
+            ]
+        )
+        facts = (
+            "The requested maximum is 75 ft AGL. The operation begins "
+            f"{self.operation.start_date.isoformat()}. The requested radius "
+            "is 0.50 nautical miles."
+        )
+        package = self._geometry_package(facts)
+        _validate_discrete_source_fidelity(package, self.operation)
+        _validate_geometry_source_fidelity(package, self.operation)
+
+        wrong_altitude = self._geometry_package(
+            facts.replace("75 ft AGL", "100 ft AGL")
+        )
+        with self.assertRaises(OpenAIConopsError):
+            _validate_discrete_source_fidelity(wrong_altitude, self.operation)
+
+        wrong_radius = self._geometry_package(
+            facts.replace("0.50 nautical miles", "1 NM")
+        )
+        with self.assertRaises(OpenAIConopsError):
+            _validate_geometry_source_fidelity(wrong_radius, self.operation)
+
+    def test_section_nine_uses_section_four_conflict_reference(self):
+        stored = CREWED_AIRCRAFT_CONFLICT_RESPONSE_VO
+        self.operation.has_visual_observer = True
+        self.operation.crewed_aircraft_conflict_response = stored
+        package = self._geometry_package("Valid generated overview.")
+        section_four = next(
+            item for item in package.sections if item.key == "see-and-avoid"
+        )
+        section_nine = next(
+            item
+            for item in package.sections
+            if item.key == "emergency-procedures"
+        )
+        section_four.content = "Visual scanning context. " + stored
+        section_nine.content = (
+            "Lost-link procedures remain in effect. Airspace Conflict: Upon "
+            "detecting crewed aircraft, the RPIC will descend, reposition, "
+            "or land as necessary until the conflict is resolved."
+        )
+
+        _ensure_crewed_aircraft_response(package, self.operation)
+        _ensure_emergency_airspace_conflict_reference(package)
+        _ensure_emergency_airspace_conflict_reference(package)
+
+        self.assertEqual(section_four.content.count(stored), 1)
+        self.assertNotIn("descend, reposition", section_nine.content)
+        self.assertEqual(
+            section_nine.content.count(EMERGENCY_AIRSPACE_CONFLICT_REFERENCE),
+            1,
+        )
+        self.assertIn("Lost-link procedures remain in effect.", section_nine.content)
 
     def _geometry_package(self, text):
         return GeneratedConopsPackage(
@@ -565,6 +1364,19 @@ class ControlledAirspaceConopsWordingTests(TestCase):
             self._geometry_package("The DroneZone Requested Radius is 1/2 NM."),
             self.operation,
         )
+        _validate_geometry_source_fidelity(
+            self._geometry_package(
+                "Operations use the requested 0.5 NM radius."
+            ),
+            self.operation,
+        )
+        with self.assertRaises(OpenAIConopsError):
+            _validate_geometry_source_fidelity(
+                self._geometry_package(
+                    "Operations use the requested 1 NM radius."
+                ),
+                self.operation,
+            )
 
     def test_blanket_multiple_sites_and_varies_are_semantic_payload_values(self):
         self.operation.dronezone_radius = "blanket_wide_area"
@@ -627,17 +1439,42 @@ class ControlledAirspaceConopsWordingTests(TestCase):
             require_planning_values=True,
         )
 
+        natural_descriptions = (
+            "Operations will occur at multiple locations throughout the "
+            "mapped operational area. Launch and recovery locations will "
+            "vary throughout the approved operating area.",
+            "Operations will remain within the mapped property boundaries.",
+            "This is a wide-area operation with varying launch and recovery "
+            "locations.",
+        )
+        for description in natural_descriptions:
+            with self.subTest(description=description):
+                _validate_geometry_source_fidelity(
+                    self._geometry_package(description),
+                    self.operation,
+                )
+
+        for contradiction in (
+            "Flights use an authorized 0.5 nautical mile radius.",
+            "Flights remain within a 1 NM radius.",
+        ):
+            with self.subTest(contradiction=contradiction):
+                with self.assertRaises(OpenAIConopsError):
+                    _validate_geometry_source_fidelity(
+                        self._geometry_package(contradiction),
+                        self.operation,
+                    )
         with self.assertRaises(OpenAIConopsError):
             _validate_geometry_source_fidelity(
                 self._geometry_package(
-                    valid + " Flights use an authorized 0.5 nautical mile radius."
+                    valid + " The launch site is at latitude 36.271187."
                 ),
                 self.operation,
             )
         with self.assertRaises(OpenAIConopsError):
             _validate_geometry_source_fidelity(
                 self._geometry_package(
-                    valid + " The launch site is at latitude 36.271187."
+                    valid + " Operations use one fixed site."
                 ),
                 self.operation,
             )
@@ -840,6 +1677,66 @@ class ConopsReviewWorkflowTests(TestCase):
         self.assertTrue(self.application.locked_description)
         self.assertTrue(section.locked)
 
+    def test_newly_reviewed_edits_can_be_completed_on_the_same_save(self):
+        section = self.sections[0]
+
+        response = self.client.post(
+            self.url,
+            self._post_data(
+                description="Final reviewed Description of Operations.",
+                description_is_complete="on",
+                **{
+                    f"content_{section.pk}": "Final reviewed section content.",
+                    f"is_complete_{section.pk}": "on",
+                },
+            ),
+        )
+        self.assertRedirects(response, self.url)
+
+        self.application.refresh_from_db()
+        section.refresh_from_db()
+        self.assertTrue(self.application.description_is_complete)
+        self.assertIsNotNone(self.application.description_validated_at)
+        self.assertTrue(section.is_complete)
+        self.assertIsNotNone(section.validated_at)
+
+    def test_all_ten_reviews_advance_workflow_to_submit_current(self):
+        generated_at = timezone.now()
+        self.application.ai_generated_at = generated_at
+        self.application.ai_generation_model = "test-model"
+        self.application.conops_source_updated_at = generated_at
+        self.application.save(
+            update_fields=[
+                "ai_generated_at",
+                "ai_generation_model",
+                "conops_source_updated_at",
+                "updated_at",
+            ]
+        )
+        post_data = self._post_data(description_is_complete="on")
+        for section in self.sections:
+            post_data[f"is_complete_{section.pk}"] = "on"
+
+        response = self.client.post(self.url, post_data)
+        self.assertRedirects(response, self.url)
+        with patch.object(
+            OperationsPlanning,
+            "completion_percentage",
+            new_callable=PropertyMock,
+            return_value=100,
+        ):
+            response = self.client.get(self.url)
+
+        self.assertEqual(response.context["complete_count"], 10)
+        self.assertEqual(response.context["total_count"], 10)
+        self.assertEqual(response.context["review_percentage"], 100)
+        self.assertContains(response, "10 of 10 items reviewed")
+        steps = response.context["submission_workflow_steps"]
+        self.assertTrue(steps[2]["complete"])
+        self.assertFalse(steps[2]["current"])
+        self.assertTrue(steps[3]["current"])
+        self.assertFalse(steps[3]["complete"])
+
     def test_review_textareas_render_fifteen_rows(self):
         response = self.client.get(self.url)
 
@@ -948,6 +1845,108 @@ class ConopsReviewWorkflowTests(TestCase):
         OPENAI_TEXT_MODEL="test-model",
     )
     @patch("airspace.ai_conops._request_ai_document")
+    def test_regeneration_inserts_omitted_operation_reference_coordinates(
+        self, request_document
+    ):
+        self.operation.location_latitude = "34.099076"
+        self.operation.location_longitude = "-117.775772"
+        self.operation.launch_latitude = "34.092603"
+        self.operation.launch_longitude = "-117.771812"
+        self.operation.save(
+            update_fields=[
+                "location_latitude",
+                "location_longitude",
+                "launch_latitude",
+                "launch_longitude",
+            ]
+        )
+        package = GeneratedConopsPackage(
+            description_of_operations=(
+                "Regenerated description for "
+                f"{self.operation.start_date.isoformat()}."
+            ),
+            sections=[
+                GeneratedConopsSection(
+                    key=definition.key,
+                    title=definition.title,
+                    content=(
+                        "The launch coordinates are 34.092603, -117.771812."
+                        if definition.key == "operational-area-airspace"
+                        else f"Regenerated {definition.key}."
+                    ),
+                )
+                for definition in CONOPS_DEFINITIONS
+            ],
+        )
+        request_document.return_value = (package, MagicMock(usage=None))
+
+        generate_ai_conops(
+            self.approval,
+            self.user,
+            regenerate_unlocked=True,
+        )
+
+        section = ConopsSection.objects.get(
+            application=self.application,
+            section_key="operational-area-airspace",
+        )
+        canonical = (
+            "The operation reference point is latitude 34.099076, "
+            "longitude -117.775772."
+        )
+        launch = (
+            "The launch location is latitude 34.092603, longitude "
+            "-117.771812."
+        )
+        self.assertEqual(section.content.count(canonical), 1)
+        self.assertEqual(section.content.count(launch), 1)
+
+    @override_settings(
+        OPENAI_API_KEY="test-key",
+        OPENAI_TEXT_MODEL="test-model",
+    )
+    @patch("airspace.ai_conops._request_ai_document")
+    def test_regeneration_cannot_omit_avoided_over_people_limit(
+        self, request_document
+    ):
+        self.operation.operations_over_people = "avoided"
+        self.operation.save(update_fields=["operations_over_people"])
+        package = GeneratedConopsPackage(
+            description_of_operations=(
+                "Regenerated description for "
+                f"{self.operation.start_date.isoformat()}."
+            ),
+            sections=[
+                GeneratedConopsSection(
+                    key=definition.key,
+                    title=definition.title,
+                    content=f"Regenerated {definition.key}.",
+                )
+                for definition in CONOPS_DEFINITIONS
+            ],
+        )
+        request_document.return_value = (package, MagicMock(usage=None))
+
+        generate_ai_conops(
+            self.approval,
+            self.user,
+            regenerate_unlocked=True,
+        )
+
+        section = ConopsSection.objects.get(
+            application=self.application,
+            section_key="flight-envelope-limitations",
+        )
+        self.assertEqual(
+            section.content.count(OPERATIONS_OVER_PEOPLE_AVOIDED),
+            1,
+        )
+
+    @override_settings(
+        OPENAI_API_KEY="test-key",
+        OPENAI_TEXT_MODEL="test-model",
+    )
+    @patch("airspace.ai_conops._request_ai_document")
     def test_regeneration_preserves_protected_content(self, request_document):
         protected_section = self.sections[0]
         protected_section.locked = True
@@ -958,7 +1957,10 @@ class ConopsReviewWorkflowTests(TestCase):
         )
 
         package = GeneratedConopsPackage(
-            description_of_operations="Regenerated description.",
+            description_of_operations=(
+                "Regenerated description for "
+                f"{self.operation.start_date.isoformat()}."
+            ),
             sections=[
                 GeneratedConopsSection(
                     key=definition.key,
@@ -1043,6 +2045,138 @@ class ConopsReviewWorkflowTests(TestCase):
         self.assertEqual(protected_section.content, original_content)
         self.assertTrue(protected_section.locked)
         self.assertTrue(protected_section.is_complete)
+        self.application.refresh_from_db()
+        self.assertIn(
+            "changed or omitted an exact user-entered identifier: LSV ATC",
+            self.application.ai_generation_error,
+        )
+        response = self.client.get(self.url)
+        self.assertContains(
+            response,
+            "Generation failed — existing CONOPS content was not replaced.",
+        )
+
+    @override_settings(
+        OPENAI_API_KEY="test-key",
+        OPENAI_TEXT_MODEL="test-model",
+    )
+    @patch("airspace.ai_conops._request_ai_document")
+    def test_successful_regeneration_replaces_old_fixed_radius_text(
+        self, request_document
+    ):
+        old_description = (
+            "The DroneZone Requested Radius is 1/2 NM. Operations will remain "
+            "within a radius around the launch site. Operation reference "
+            "coordinates are 36.271187, -115.009416. The operation begins "
+            f"{self.operation.start_date.isoformat()}."
+        )
+        old_section = (
+            "The stored selection is 1/2 NM. Flights will remain within the "
+            "authorized 0.5 nautical mile radius."
+        )
+        area_section = next(
+            section
+            for section in self.sections
+            if section.section_key == "operational-area-airspace"
+        )
+
+        self.operation.dronezone_radius = "0.5_nm"
+        self.operation.launch_location = "Primary pad"
+        self.operation.recovery_location = "Primary pad"
+        self.operation.location_latitude = "36.271187"
+        self.operation.location_longitude = "-115.009416"
+        self.operation.save()
+        request_document.return_value = (
+            GeneratedConopsPackage(
+                description_of_operations=old_description,
+                sections=[
+                    GeneratedConopsSection(
+                        key=definition.key,
+                        title=definition.title,
+                        content=(
+                            old_section
+                            if definition.key == "operational-area-airspace"
+                            else f"Initial {definition.key}."
+                        ),
+                    )
+                    for definition in CONOPS_DEFINITIONS
+                ],
+            ),
+            MagicMock(usage=None),
+        )
+        generate_ai_conops(
+            self.approval,
+            self.user,
+            regenerate_unlocked=True,
+        )
+        self.application.refresh_from_db()
+        area_section.refresh_from_db()
+        self.assertEqual(self.application.description, old_description)
+        self.assertIn(old_section, area_section.content)
+        self.assertIn(
+            "The operation reference point is latitude 36.271187, "
+            "longitude -115.009416.",
+            area_section.content,
+        )
+
+        self.operation.dronezone_radius = "blanket_wide_area"
+        self.operation.operation_area_type = "multiple_sites"
+        self.operation.launch_location = "Varies"
+        self.operation.recovery_location = "Varies"
+        self.operation.location_latitude = "36.271187"
+        self.operation.location_longitude = "-115.009416"
+        self.operation.save()
+        _invalidate_operation_conops(self.operation)
+
+        current_geometry = (
+            "Operations use Multiple sites. The launch location Varies and "
+            "the recovery location Varies. The DroneZone Requested Radius is "
+            "Blanket Area / Wide Area. The coordinates are operation "
+            "reference coordinates, not launch coordinates: 36.271187, "
+            "-115.009416. The operation begins "
+            f"{self.operation.start_date.isoformat()}."
+        )
+        request_document.return_value = (
+            GeneratedConopsPackage(
+                description_of_operations=current_geometry,
+                sections=[
+                    GeneratedConopsSection(
+                        key=definition.key,
+                        title=definition.title,
+                        content=(
+                            current_geometry
+                            if definition.key == "operational-area-airspace"
+                            else f"Regenerated {definition.key}."
+                        ),
+                    )
+                    for definition in CONOPS_DEFINITIONS
+                ],
+            ),
+            MagicMock(usage=None),
+        )
+
+        generate_ai_conops(
+            self.approval,
+            self.user,
+            regenerate_unlocked=True,
+        )
+
+        self.application.refresh_from_db()
+        area_section.refresh_from_db()
+        self.assertEqual(self.application.description, current_geometry)
+        self.assertIn("Operations use Multiple sites.", area_section.content)
+        self.assertIn("Blanket Area / Wide Area", area_section.content)
+        self.assertIn(
+            "The operation reference point is latitude 36.271187, "
+            "longitude -115.009416.",
+            area_section.content,
+        )
+        combined = f"{self.application.description}\n{area_section.content}"
+        self.assertNotIn("0.5 nautical mile radius", combined)
+        self.assertNotIn("radius around the launch site", combined)
+        self.assertIn("Blanket Area / Wide Area", combined)
+        self.assertIn("Multiple sites", combined)
+        self.assertIn("launch location Varies", combined)
 
 
 class SubmissionDocumentTests(TestCase):
@@ -1062,6 +2196,19 @@ class SubmissionDocumentTests(TestCase):
         self.operation.emergency_response_plan = "Stored emergency text."
         self.operation.weather_go_nogo = "Stored weather text."
         self.operation.atc_facility_name = "LSV ATC"
+        self.operation.atc_frequency = "123.45 MHz"
+        self.operation.atc_phone = "702-555-0188"
+        self.operation.operational_boundary_description = (
+            "Mapped property lines and Service Road A define the boundary."
+        )
+        self.operation.operations_over_people = "avoided"
+        self.operation.crowd_mitigation = "Use controlled spectator barriers."
+        self.operation.additional_operational_information = (
+            "The RPIC has prior operating experience at this location."
+        )
+        self.operation.crewed_aircraft_conflict_response = (
+            "Stored worksheet crewed-aircraft conflict response."
+        )
         self.operation.save()
         self.worksheet_url = reverse(
             "airspace:operation_application_worksheet_pdf",
@@ -1103,6 +2250,16 @@ class SubmissionDocumentTests(TestCase):
         self.assertIn("Stored emergency text.", text)
         self.assertIn("Stored weather text.", text)
         self.assertIn("LSV ATC", text)
+        self.assertIn("123.45 MHz", text)
+        self.assertIn("702-555-0188", text)
+        self.assertIn("Mapped property lines", text)
+        self.assertIn("Avoided", text)
+        self.assertIn("controlled spectator barriers", text)
+        self.assertIn("prior operating experience", text)
+        self.assertIn(
+            "Stored worksheet crewed-aircraft conflict response.",
+            text,
+        )
         self.assertNotIn("Las Vegas ATC", text)
         self.assertIn("Pacific Time (PT)", text)
         self.assertNotIn("Pacific Standard Time", text)
@@ -1125,6 +2282,31 @@ class SubmissionDocumentTests(TestCase):
         self.assertNotIn("FAA DroneZone Application Worksheet", text)
         self.assertNotIn("Supporting Planning Information", text)
         self.assertIn("Draft — RPIC review required", text)
+        self.assertIn("PDF prepared:", text)
+        self.assertIn("AI content generated:", text)
+
+    def test_unchanged_generation_post_does_not_retimestamp_saved_sections(self):
+        section = self.sections[0]
+        original_updated_at = section.updated_at
+
+        with patch(
+            "airspace.views.generate_ai_conops",
+            side_effect=OpenAIConopsError("Test generation failure."),
+        ):
+            post_data = {
+                "action": "generate_ai",
+                "description": self.application.description,
+            }
+            for saved_section in self.sections:
+                post_data[f"content_{saved_section.pk}"] = saved_section.content
+            response = self.client.post(
+                self.url,
+                post_data,
+            )
+
+        self.assertRedirects(response, self.url)
+        section.refresh_from_db()
+        self.assertEqual(section.updated_at, original_updated_at)
 
     def test_image_map_is_embedded_without_private_location_leakage(self):
         image = Image.new("RGB", (1200, 800), color=(20, 90, 140))

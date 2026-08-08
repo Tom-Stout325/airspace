@@ -144,6 +144,28 @@
 
   <div class="row g-4">
     <div class="col-12 col-lg-7">
+      <div class="card shadow-sm mb-4">
+        <div class="card-header" style="background: SteelBlue; color: white;">
+          <strong>Operational Planning Information</strong>
+        </div>
+        <div class="card-body">
+          <p><strong>Operational area:</strong> {{ operation.get_operation_area_type_display }}</p>
+          {% if operation.operation_area_type == "corridor" %}
+            <p><strong>Corridor dimensions:</strong> {{ operation.corridor_length_ft }} feet long by {{ operation.corridor_width_ft }} feet wide</p>
+          {% endif %}
+          {% if operation.operational_boundary_description %}
+            <p><strong>Operational boundaries:</strong><br>{{ operation.operational_boundary_description|linebreaksbr }}</p>
+          {% endif %}
+          <p><strong>Operations over people / open-air assemblies:</strong> {{ operation.get_operations_over_people_display|default:"Not specified" }}</p>
+          {% if operation.crowd_mitigation %}
+            <p><strong>Crowd mitigation:</strong><br>{{ operation.crowd_mitigation|linebreaksbr }}</p>
+          {% endif %}
+          {% if operation.additional_operational_information %}
+            <p class="mb-0"><strong>Additional operational information / controls:</strong><br>{{ operation.additional_operational_information|linebreaksbr }}</p>
+          {% endif %}
+        </div>
+      </div>
+
       <div
         class="card shadow-sm mb-4"
         id="aircraft-section"

@@ -53,7 +53,13 @@
     <h1>{{ operation.operation_title }}</h1>
     <p>{{ approval.approval_type.name }}{% if approval.regulation_display %} · {{ approval.regulation_display }}{% endif %}</p>
     <div class="meta">
-      <strong>Generated:</strong> {{ generated_at|date:"F j, Y g:i A T" }}<br>
+      <strong>PDF prepared:</strong> {{ generated_at|date:"F j, Y g:i A T" }}<br>
+      <strong>AI content generated:</strong>
+      {% if application.ai_generated_at %}
+        {{ application.ai_generated_at|date:"F j, Y g:i A T" }}
+      {% else %}
+        Not recorded
+      {% endif %}<br>
       <strong>Model:</strong> {{ application.ai_generation_model|default:"Not recorded" }}<br>
       <strong>Review status:</strong>
       {% if all_sections_complete %}<span class="complete">Reviewed</span>{% else %}<span class="draft">Draft — RPIC review required</span>{% endif %}
