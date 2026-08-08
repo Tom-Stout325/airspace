@@ -31,7 +31,7 @@ psycopg2-binary==2.9.10
 pycparser==3.0
 pydantic==2.12.5
 pydantic_core==2.41.5
-pydyf==0.6.1
+pydyf==0.6.0
 pyphen==0.17.2
 pypdf==6.15.0
 python-dateutil==2.9.0.post0
