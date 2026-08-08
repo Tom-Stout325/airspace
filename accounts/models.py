@@ -5,6 +5,9 @@ from django.db import models
 from django.utils import timezone
 import secrets
 
+def generate_invitation_token():
+    return secrets.token_urlsafe(32)
+
 
 class UserManager(BaseUserManager):
     use_in_migrations = True
@@ -64,7 +67,6 @@ class InvitationManager(models.Manager):
         return self.create(
             email=normalized,
             invited_by=invited_by,
-            token=secrets.token_urlsafe(32),
             expires_at=timezone.now() + lifetime,
         )
 
@@ -75,21 +77,16 @@ class Invitation(models.Model):
         ACCEPTED = "accepted", "Accepted"
         REVOKED = "revoked", "Revoked"
 
-    email = models.EmailField(db_index=True)
-    token = models.CharField(max_length=64, unique=True, editable=False)
-    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING, db_index=True)
-    invited_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.PROTECT,
-        related_name="sent_invitations",
-    )
-    sent_at = models.DateTimeField(null=True, blank=True)
-    expires_at = models.DateTimeField(db_index=True)
-    accepted_at = models.DateTimeField(null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    objects = InvitationManager()
+    email              = models.EmailField(db_index=True)
+    token              = models.CharField(max_length=64, unique=True, editable=False, default=generate_invitation_token,)
+    status             = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING, db_index=True)
+    invited_by         = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="sent_invitations",)
+    sent_at            = models.DateTimeField(null=True, blank=True)
+    expires_at         = models.DateTimeField(db_index=True)
+    accepted_at        = models.DateTimeField(null=True, blank=True)
+    created_at         = models.DateTimeField(auto_now_add=True)
+    updated_at         = models.DateTimeField(auto_now=True)
+    objects            = InvitationManager()
 
     class Meta:
         ordering = ["-created_at"]
