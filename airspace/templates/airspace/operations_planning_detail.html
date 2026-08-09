@@ -167,38 +167,43 @@
       <div
         class="card shadow-sm mb-4"
         id="aircraft-section"
-        style="scroll-margin-top: 6rem;">
+        style="scroll-margin-top: 6rem;"
+      >
         <div
-          class="card-header d-flex justify-content-between align-items-center"
-          style="background: SteelBlue; color: white;">
-        <div>
-          {% if operation.aircraft_assignments.count > 1 %}
-            <div class="alert alert-info rounded-0 border-start-0 border-end-0 mb-0">
-              <strong>Multiple aircraft assigned.</strong>
-              All assigned aircraft will be supplied to the CONOPS generator
-              and included in the FAA planning documentation.
-              Confirm that <strong>Aircraft Deployment</strong> in the
-              operation plan accurately states whether they will be used
-              sequentially or simultaneously.
-            </div>
-          {% endif %}
-          <strong>Aircraft</strong>
-          <span class="badge text-bg-light ms-2">
-            {{ operation.aircraft_assignments.count }}
-              assigned
-          </span>
-        </div>
+          class="card-header d-flex justify-content-between align-items-center gap-3"
+          style="background: SteelBlue; color: white;"
+        >
+          <div>
+            <strong>Aircraft</strong>
+            <span class="badge text-bg-light ms-2">
+              {{ operation.aircraft_assignments.count }} assigned
+            </span>
+          </div>
 
           <a
-            class="btn btn-sm btn-light"
-            href="{% url 'airspace:operation_aircraft_add' operation.pk %}">
+            class="btn btn-sm btn-light flex-shrink-0"
+            href="{% url 'airspace:operation_aircraft_add' operation.pk %}"
+          >
             {% if operation.aircraft_assignments.exists %}
               Add another aircraft
             {% else %}
               Add aircraft
             {% endif %}
-          </a>  
+          </a>
         </div>
+
+        {% if operation.aircraft_assignments.count > 1 %}
+          <div
+            class="alert alert-info rounded-0 border-start-0 border-end-0 border-top-0 mb-0"
+          >
+            <strong>Multiple aircraft assigned.</strong>
+            All assigned aircraft will be included in the FAA planning
+            documentation and supplied to the CONOPS generator.
+            Confirm that <strong>Aircraft Deployment</strong> in the operation
+            plan accurately states whether the aircraft will be used
+            sequentially or simultaneously.
+          </div>
+        {% endif %}
 
         <div class="list-group list-group-flush">
           {% for item in operation.aircraft_assignments.all %}
@@ -214,16 +219,27 @@
                   {% endif %}
 
                   <div class="d-flex flex-wrap gap-2 mt-2">
-                    <span class="badge {% if item.registration_verified %}text-bg-success{% else %}text-bg-secondary{% endif %}">
+                    <span
+                      class="badge {% if item.registration_verified %}text-bg-success{% else %}text-bg-secondary{% endif %}"
+                    >
                       Registration
                     </span>
-                    <span class="badge {% if item.remote_id_verified %}text-bg-success{% else %}text-bg-secondary{% endif %}">
+
+                    <span
+                      class="badge {% if item.remote_id_verified %}text-bg-success{% else %}text-bg-secondary{% endif %}"
+                    >
                       Remote ID
                     </span>
-                    <span class="badge {% if item.preflight_airworthiness_verified %}text-bg-success{% else %}text-bg-secondary{% endif %}">
+
+                    <span
+                      class="badge {% if item.preflight_airworthiness_verified %}text-bg-success{% else %}text-bg-secondary{% endif %}"
+                    >
                       Airworthiness
                     </span>
-                    <span class="badge {% if item.current_firmware_installed %}text-bg-success{% else %}text-bg-secondary{% endif %}">
+
+                    <span
+                      class="badge {% if item.current_firmware_installed %}text-bg-success{% else %}text-bg-secondary{% endif %}"
+                    >
                       Firmware
                     </span>
                   </div>
@@ -236,13 +252,14 @@
                   {% endif %}
                 </div>
 
-                <div class="flex-shrink-0">
+                <div class="d-flex flex-wrap align-content-start gap-2 flex-shrink-0">
                   <a
                     class="btn btn-sm btn-outline-secondary"
                     href="{% url 'airspace:operation_aircraft_edit' operation.pk item.pk %}"
                   >
                     Edit
                   </a>
+
                   <a
                     class="btn btn-sm btn-outline-danger"
                     href="{% url 'airspace:operation_aircraft_delete' operation.pk item.pk %}"
@@ -253,7 +270,9 @@
               </div>
             </div>
           {% empty %}
-            <div class="p-4 text-muted">No aircraft assigned.</div>
+            <div class="p-4 text-muted">
+              No aircraft assigned.
+            </div>
           {% endfor %}
         </div>
       </div>
