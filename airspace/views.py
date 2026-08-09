@@ -96,6 +96,7 @@ def operations_planning_edit(request, pk):
         pk=pk,
         user=request.user,
     )
+
     form = OperationsPlanningForm(
         request.POST if request.method == "POST" else None,
         request.FILES if request.method == "POST" else None,
@@ -104,13 +105,25 @@ def operations_planning_edit(request, pk):
     )
 
     if request.method == "POST" and form.is_valid():
-        planning_changed = form.has_changed()
+        changed_fields = set(form.changed_data)
+
+        non_conops_fields = {
+            "status",
+        }
+
+        conops_source_changed = bool(
+            changed_fields - non_conops_fields
+        )
+
         operation = form.save()
 
-        if planning_changed:
+        if conops_source_changed:
             _invalidate_operation_conops(operation)
 
-        messages.success(request, "Operation plan updated.")
+        messages.success(
+            request,
+            "Operation plan updated.",
+        )
         return redirect(
             "airspace:operations_planning_detail",
             pk=operation.pk,
@@ -125,7 +138,6 @@ def operations_planning_edit(request, pk):
             "page_title": "Edit operation plan",
         },
     )
-
 
 def _invalidate_operation_conops(operation):
     """
