@@ -994,25 +994,65 @@ def _operation_timezone_display(operation):
 
 def _operation_map_data(operation):
     field = operation.operation_map
-    if not field:
-        return {"available": False, "is_pdf": False, "image_uri": "", "bytes": b""}
 
-    field.open("rb")
+    if not field or not field.name:
+        return {
+            "available": False,
+            "is_pdf": False,
+            "image_uri": "",
+            "bytes": b"",
+        }
+
+    storage = field.storage
+
+    if not storage.exists(field.name):
+        return {
+            "available": False,
+            "is_pdf": False,
+            "image_uri": "",
+            "bytes": b"",
+        }
+
     try:
-        content = field.read()
-    finally:
-        field.close()
+        field.open("rb")
+        try:
+            content = field.read()
+        finally:
+            field.close()
+    except (FileNotFoundError, OSError):
+        return {
+            "available": False,
+            "is_pdf": False,
+            "image_uri": "",
+            "bytes": b"",
+        }
 
-    suffix = Path(field.name or "").suffix.lower()
+    suffix = Path(field.name).suffix.lower()
+
     if suffix == ".pdf":
-        return {"available": True, "is_pdf": True, "image_uri": "", "bytes": content}
+        return {
+            "available": True,
+            "is_pdf": True,
+            "image_uri": "",
+            "bytes": content,
+        }
 
-    mime_type = mimetypes.guess_type(field.name or "")[0] or "application/octet-stream"
+    mime_type = (
+        mimetypes.guess_type(field.name)[0]
+        or "application/octet-stream"
+    )
+
     image_uri = (
         f"data:{mime_type};base64,"
         f"{base64.b64encode(content).decode('ascii')}"
     )
-    return {"available": True, "is_pdf": False, "image_uri": image_uri, "bytes": content}
+
+    return {
+        "available": True,
+        "is_pdf": False,
+        "image_uri": image_uri,
+        "bytes": content,
+    }
 
 
 def _conops_page_overlay(*, page_number, total_pages, title, appendix=False):
