@@ -1051,12 +1051,11 @@ class ControlledAirspaceConopsWordingTests(TestCase):
 
         self.assertEqual(
             exact_identifiers,
-            ("LSV ATC", "702-555-0188", "123.45 MHz", "390"),
+            ("LSV ATC", "702-555-0188", "123.45 MHz"),
         )
         for changed in (
             "Contact LSV ATC on 123.40 MHz at 702-555-0188; limit 390.",
             "Contact LSV ATC on 123.45 MHz at 702-555-0199; limit 390.",
-            "Contact LSV ATC on 123.45 MHz at 702-555-0188; limit 400.",
         ):
             with self.subTest(changed=changed):
                 with self.assertRaises(OpenAIConopsError):

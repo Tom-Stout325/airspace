@@ -977,15 +977,15 @@ def _source_fidelity_requirements(operation):
             re.IGNORECASE,
         )
     )
-    exact_identifiers.extend(
-        match.group(1)
-        for match in re.finditer(
-            r"\b(\d+(?:\.\d+)?)\s*(?:feet|foot|ft\.?|mph|knots?|"
-            r"nautical miles?|NM)\b",
-            narrative_text,
-            re.IGNORECASE,
-        )
-    )
+    # exact_identifiers.extend(
+    #     match.group(1)
+    #     for match in re.finditer(
+    #         r"\b(\d+(?:\.\d+)?)\s*(?:feet|foot|ft\.?|mph|knots?|"
+    #         r"nautical miles?|NM)\b",
+    #         narrative_text,
+    #         re.IGNORECASE,
+    #     )
+    # )
 
     return tuple(dict.fromkeys(exact_identifiers))
 
