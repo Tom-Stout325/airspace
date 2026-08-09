@@ -134,35 +134,35 @@ EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD', default='')
 EMAIL_USE_TLS = env.bool('EMAIL_USE_TLS', default=True)
 EMAIL_USE_SSL = env.bool('EMAIL_USE_SSL', default=False)
 
-USE_S3 = env.bool('USE_S3', default=False)
+USE_S3 = env.bool("USE_S3", default=False)
+
 if USE_S3:
-    AWS_ACCESS_KEY_ID = env('AWS_ACCESS_KEY_ID')
-    AWS_SECRET_ACCESS_KEY = env('AWS_SECRET_ACCESS_KEY')
-    AWS_STORAGE_BUCKET_NAME = env('AWS_STORAGE_BUCKET_NAME')
-    AWS_S3_REGION_NAME = env('AWS_S3_REGION_NAME')
+    AWS_ACCESS_KEY_ID = env("AWS_ACCESS_KEY_ID")
+    AWS_SECRET_ACCESS_KEY = env("AWS_SECRET_ACCESS_KEY")
+    AWS_STORAGE_BUCKET_NAME = env("AWS_STORAGE_BUCKET_NAME")
+    AWS_S3_REGION_NAME = env("AWS_S3_REGION_NAME")
+
     AWS_DEFAULT_ACL = None
-    AWS_QUERYSTRING_AUTH = False
+    AWS_QUERYSTRING_AUTH = True
+    AWS_QUERYSTRING_EXPIRE = 3600
     AWS_S3_FILE_OVERWRITE = False
 
     STORAGES = {
-        'default': {
-            'BACKEND': 'storages.backends.s3.S3Storage',
-            'OPTIONS': {'location': 'media'},
+        "default": {
+            "BACKEND": "storages.backends.s3.S3Storage",
+            "OPTIONS": {
+                "location": "media",
+            },
         },
-        'staticfiles': {
-            'BACKEND': 'storages.backends.s3.S3Storage',
-            'OPTIONS': {'location': 'static'},
+        "staticfiles": {
+            "BACKEND": (
+                "whitenoise.storage."
+                "CompressedManifestStaticFilesStorage"
+            ),
         },
     }
-    STATIC_URL = (
-        f"https://{AWS_STORAGE_BUCKET_NAME}."
-        f"s3.{AWS_S3_REGION_NAME}.amazonaws.com/static/"
-    )
-
-    MEDIA_URL = (
-        f"https://{AWS_STORAGE_BUCKET_NAME}."
-        f"s3.{AWS_S3_REGION_NAME}.amazonaws.com/media/"
-    )
+    
+    
 # Invitation-only registration
 INVITATION_EXPIRY_HOURS = env.int('INVITATION_EXPIRY_HOURS', default=72)
 
