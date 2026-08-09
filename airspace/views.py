@@ -1442,23 +1442,37 @@ def _approval_type_regulations():
 
 @login_required
 def operation_approval_add(request, operation_pk):
-    operation = get_object_or_404(OperationsPlanning, pk=operation_pk, user=request.user)
-    form = OperationApprovalForm(request.POST or None, request.FILES or None)
+    operation = get_object_or_404(
+        OperationsPlanning,
+        pk=operation_pk,
+        user=request.user,
+    )
+
+    form = OperationApprovalForm(
+        request.POST or None,
+        request.FILES or None,
+        operation=operation,
+    )
+
     if request.method == "POST" and form.is_valid():
         approval = form.save(commit=False)
         approval.operation = operation
         approval.save()
+
         _invalidate_operation_conops(operation)
+
         messages.success(request, "FAA approval added.")
-        return redirect("airspace:operations_planning_detail", pk=operation.pk)
+        return redirect(
+            "airspace:operations_planning_detail",
+            pk=operation.pk,
+        )
+
     return render(
         request,
         "airspace/operation_approval_form.html",
         {
             "form": form,
             "operation": operation,
-            "page_title": "Add FAA Waiver / Approval",
-            "approval_type_regulations": _approval_type_regulations(),
         },
     )
 
