@@ -2046,7 +2046,7 @@ class ConopsReviewWorkflowTests(TestCase):
         self.assertTrue(protected_section.is_complete)
         self.application.refresh_from_db()
         self.assertIn(
-            "changed or omitted an exact user-entered identifier: LSV ATC",
+            "did not preserve a required exact identifier from the planning record: LSV ATC",
             self.application.ai_generation_error,
         )
         response = self.client.get(self.url)

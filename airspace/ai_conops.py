@@ -80,6 +80,41 @@ def openai_is_configured() -> bool:
     return bool(_setting("OPENAI_API_KEY", ""))
 
 
+def _package_text(package: GeneratedConopsPackage) -> str:
+    """Return all generated narrative text as one searchable string."""
+    return "\n".join(
+        [package.description_of_operations]
+        + [section.content for section in package.sections]
+    )
+
+
+def _find_section(
+    package: GeneratedConopsPackage,
+    key: str,
+) -> GeneratedConopsSection | None:
+    """Return a generated section by key, or None when it is absent."""
+    return next(
+        (section for section in package.sections if section.key == key),
+        None,
+    )
+
+
+def _unchanged_error(message: str) -> OpenAIConopsError:
+    """Build a consistent validation error without duplicating suffix text."""
+    return OpenAIConopsError(
+        f"{message} No reviewed content was changed."
+    )
+
+
+def _sentences(text: str) -> list[str]:
+    """Split prose into non-empty sentences for lightweight cleanup rules."""
+    return [
+        sentence.strip()
+        for sentence in re.split(r"(?<=[.!?])\s+", text.strip())
+        if sentence.strip()
+    ]
+
+
 def _json_value(value: Any) -> Any:
     if isinstance(value, (date, datetime)):
         return value.isoformat()
@@ -592,10 +627,7 @@ def _validate_package(
                 f"for {key!r}."
             )
 
-    generated_text = "\n".join(
-        [package.description_of_operations]
-        + [section.content for section in package.sections]
-    )
+    generated_text = _package_text(package)
     missing_identifiers = [
         identifier
         for identifier in required_exact_identifiers
@@ -603,9 +635,10 @@ def _validate_package(
     ]
     if missing_identifiers:
         raise OpenAIConopsError(
-            "The generated CONOPS changed or omitted an exact user-entered "
-            "identifier: " + ", ".join(missing_identifiers) + ". "
-            "No reviewed content was changed."
+            "The generated CONOPS did not preserve a required exact "
+            "identifier from the planning record: "
+            + ", ".join(missing_identifiers)
+            + ". No reviewed content was changed."
         )
 
     return returned
@@ -620,21 +653,13 @@ def _ensure_crewed_aircraft_response(
     if not procedure:
         return
 
-    section = next(
-        (
-            item
-            for item in package.sections
-            if item.key == "see-and-avoid"
-        ),
-        None,
-    )
+    section = _find_section(package, "see-and-avoid")
     if section is None:
         return
 
     intro = section.content.replace(procedure, " ")
-    sentences = re.split(r"(?<=[.!?])\s+", intro.strip())
     concise_context = []
-    for sentence in sentences:
+    for sentence in _sentences(intro):
         normalized = sentence.casefold()
         action_count = sum(
             term in normalized
@@ -660,14 +685,7 @@ def _ensure_emergency_airspace_conflict_reference(
     package: GeneratedConopsPackage,
 ) -> None:
     """Replace repeated Section 4 response actions with one cross-reference."""
-    section = next(
-        (
-            item
-            for item in package.sections
-            if item.key == "emergency-procedures"
-        ),
-        None,
-    )
+    section = _find_section(package, "emergency-procedures")
     if section is None:
         return
 
@@ -676,7 +694,7 @@ def _ensure_emergency_airspace_conflict_reference(
         " ",
     )
     retained = []
-    for sentence in re.split(r"(?<=[.!?])\s+", content.strip()):
+    for sentence in _sentences(content):
         normalized = sentence.casefold()
         action_count = sum(
             term in normalized
@@ -777,14 +795,7 @@ def _ensure_operation_reference_coordinates(
     if not has_reference and not has_launch:
         return
 
-    section = next(
-        (
-            item
-            for item in package.sections
-            if item.key == "operational-area-airspace"
-        ),
-        None,
-    )
+    section = _find_section(package, "operational-area-airspace")
     if section is None:
         return
 
@@ -834,14 +845,7 @@ def _ensure_operations_over_people_avoided(
     if operation.operations_over_people != "avoided":
         return
 
-    section = next(
-        (
-            item
-            for item in package.sections
-            if item.key == "flight-envelope-limitations"
-        ),
-        None,
-    )
+    section = _find_section(package, "flight-envelope-limitations")
     if section is None:
         return
 
@@ -881,10 +885,7 @@ def _ensure_additional_operational_information(
     else:
         target_key = "operational-overview"
 
-    section = next(
-        (item for item in package.sections if item.key == target_key),
-        None,
-    )
+    section = _find_section(package, target_key)
     if section is not None:
         section.content = (
             f"{section.content.strip()}\n\n"
@@ -894,15 +895,22 @@ def _ensure_additional_operational_information(
 
 
 def _source_fidelity_requirements(operation):
-    exact_identifiers = []
-    for value in (
-        operation.atc_facility_name,
-        operation.atc_phone,
-        operation.atc_frequency,
-    ):
-        value = (value or "").strip()
-        if value:
-            exact_identifiers.append(value)
+    """
+    Return user-entered identifiers that must be preserved verbatim.
+
+    Ordinary narrative measurements are intentionally excluded. Numeric facts
+    that materially affect the FAA request are validated semantically elsewhere
+    rather than requiring the model to reproduce incidental bare numbers.
+    """
+    exact_identifiers = [
+        value.strip()
+        for value in (
+            operation.atc_facility_name or "",
+            operation.atc_phone or "",
+            operation.atc_frequency or "",
+        )
+        if value.strip()
+    ]
 
     narrative_fields = (
         "operation_description",
@@ -934,70 +942,149 @@ def _source_fidelity_requirements(operation):
         getattr(operation, field_name, "") or ""
         for field_name in narrative_fields
     )
-    exact_identifiers.extend(
-        match.group(0)
-        for match in re.finditer(
-            r"\b[A-Z0-9]{2,8}\s+ATC\b",
-            narrative_text,
-        )
+
+    identifier_patterns = (
+        (r"\b[A-Z0-9]{2,8}\s+ATC\b", 0),
+        (r"\b\d{4}-P\d{3}-[A-Z]{2,4}-\d{4,8}\b", 0),
+        (r"\b(?:K[A-Z]{3}|N\d{1,5}[A-Z]{0,2})\b", 0),
+        (r"(?<!\d)[+-]?\d{1,3}\.\d{4,}(?!\d)", 0),
+        (
+            r"(?<!\w)(?:\+?1[-.\s]?)?\(?\d{3}\)?"
+            r"[-.\s]\d{3}[-.\s]\d{4}(?!\w)",
+            0,
+        ),
+        (r"\b\d{3}\.\d{1,3}\s*MHz\b", re.IGNORECASE),
     )
-    exact_identifiers.extend(
-        match.group(0)
-        for match in re.finditer(
-            r"\b\d{4}-P\d{3}-[A-Z]{2,4}-\d{4,8}\b",
-            narrative_text,
+
+    for pattern, flags in identifier_patterns:
+        exact_identifiers.extend(
+            match.group(0)
+            for match in re.finditer(
+                pattern,
+                narrative_text,
+                flags,
+            )
         )
-    )
-    exact_identifiers.extend(
-        match.group(0)
-        for match in re.finditer(
-            r"\b(?:K[A-Z]{3}|N\d{1,5}[A-Z]{0,2})\b",
-            narrative_text,
-        )
-    )
-    exact_identifiers.extend(
-        match.group(0)
-        for match in re.finditer(
-            r"(?<!\d)[+-]?\d{1,3}\.\d{4,}(?!\d)",
-            narrative_text,
-        )
-    )
-    exact_identifiers.extend(
-        match.group(0)
-        for match in re.finditer(
-            r"(?<!\w)(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}(?!\w)",
-            narrative_text,
-        )
-    )
-    exact_identifiers.extend(
-        match.group(0)
-        for match in re.finditer(
-            r"\b\d{3}\.\d{1,3}\s*MHz\b",
-            narrative_text,
-            re.IGNORECASE,
-        )
-    )
-    # exact_identifiers.extend(
-    #     match.group(1)
-    #     for match in re.finditer(
-    #         r"\b(\d+(?:\.\d+)?)\s*(?:feet|foot|ft\.?|mph|knots?|"
-    #         r"nautical miles?|NM)\b",
-    #         narrative_text,
-    #         re.IGNORECASE,
-    #     )
-    # )
 
     return tuple(dict.fromkeys(exact_identifiers))
+
+
+def _validate_operation_dates_if_mentioned(
+    generated_text: str,
+    operation,
+) -> None:
+    """
+    Reject explicit operation dates that conflict with the saved planning
+    record, but do not require generated prose to repeat those dates.
+    """
+    saved_dates = {
+        value
+        for value in (
+            operation.start_date,
+            operation.end_date,
+        )
+        if value is not None
+    }
+    if not saved_dates:
+        return
+
+    month_lookup = {
+        name: number
+        for number, name in enumerate(
+            (
+                "january",
+                "february",
+                "march",
+                "april",
+                "may",
+                "june",
+                "july",
+                "august",
+                "september",
+                "october",
+                "november",
+                "december",
+            ),
+            start=1,
+        )
+    }
+    mentioned_dates: set[date] = set()
+
+    def add_date(year: str, month: str | int, day: str) -> None:
+        try:
+            month_number = (
+                month_lookup[month.casefold()]
+                if isinstance(month, str) and not month.isdigit()
+                else int(month)
+            )
+            mentioned_dates.add(
+                date(int(year), month_number, int(day))
+            )
+        except (KeyError, ValueError):
+            return
+
+    date_patterns = (
+        (
+            re.compile(
+                r"\b(?P<year>\d{4})-(?P<month>\d{2})-(?P<day>\d{2})\b"
+            ),
+            lambda match: (
+                match.group("year"),
+                match.group("month"),
+                match.group("day"),
+            ),
+        ),
+        (
+            re.compile(
+                r"\b(?P<month>\d{1,2})/"
+                r"(?P<day>\d{1,2})/"
+                r"(?P<year>\d{4})\b"
+            ),
+            lambda match: (
+                match.group("year"),
+                match.group("month"),
+                match.group("day"),
+            ),
+        ),
+        (
+            re.compile(
+                r"\b(?P<month>"
+                + "|".join(name.title() for name in month_lookup)
+                + r")\s+(?P<day>\d{1,2}),\s+(?P<year>\d{4})\b",
+                re.IGNORECASE,
+            ),
+            lambda match: (
+                match.group("year"),
+                match.group("month"),
+                match.group("day"),
+            ),
+        ),
+    )
+
+    for pattern, parts in date_patterns:
+        for match in pattern.finditer(generated_text):
+            add_date(*parts(match))
+
+    conflicting_dates = mentioned_dates - saved_dates
+    if conflicting_dates:
+        raise _unchanged_error(
+            "The generated CONOPS contains an operation date that "
+            "conflicts with the saved planning record."
+        )
 
 
 def _validate_discrete_source_fidelity(
     package: GeneratedConopsPackage,
     operation,
 ) -> None:
-    generated_text = "\n".join(
-        [package.description_of_operations]
-        + [section.content for section in package.sections]
-    )
+    """
+    Validate discrete FAA-significant facts.
+
+    The validator rejects contradictions and substitutions while allowing
+    harmless narrative omissions. Required facts that must always appear
+    should be inserted deterministically or validated semantically.
+    """
+    generated_text = _package_text(package)
 
     expected_reference = (
         operation.location_latitude,
@@ -1016,6 +1103,7 @@ def _validate_discrete_source_fidelity(
         rf"(?P<longitude>{COORDINATE_PATTERN.pattern})",
         re.IGNORECASE,
     )
+
     for match in reference_pair_pattern.finditer(generated_text):
         for label, expected in zip(
             ("latitude", "longitude"),
@@ -1023,24 +1111,33 @@ def _validate_discrete_source_fidelity(
         ):
             if expected is None:
                 continue
+
             supplied = Decimal(match.group(label))
-            if abs(supplied - Decimal(str(expected))) > COORDINATE_TOLERANCE:
-                raise OpenAIConopsError(
+            if (
+                abs(supplied - Decimal(str(expected)))
+                > COORDINATE_TOLERANCE
+            ):
+                raise _unchanged_error(
                     "The generated CONOPS substituted a different operation "
-                    f"reference {label}. No reviewed content was changed."
+                    f"reference {label}."
                 )
 
+    # Requested maximum altitude is central to the FAA authorization and must
+    # remain explicit in the generated package.
     altitude = operation.maximum_planned_altitude_agl
     if altitude is not None and not re.search(
         rf"\b{altitude}\s*(?:feet|ft\.?)\s+AGL\b",
         generated_text,
         re.IGNORECASE,
     ):
-        raise OpenAIConopsError(
-            "The generated CONOPS changed or omitted the requested maximum "
-            "altitude. No reviewed content was changed."
+        raise _unchanged_error(
+            "The generated CONOPS did not preserve the requested maximum "
+            "altitude from the saved planning record."
         )
 
+    # Reject any aircraft registration that does not belong to an aircraft
+    # assigned to this operation. The CONOPS does not need to mention every
+    # registration, but any one that it does mention must be correct.
     assigned_registrations = _assigned_registration_lookup(operation)
     mentioned_registrations = {
         registration
@@ -1054,47 +1151,26 @@ def _validate_discrete_source_fidelity(
         for registration in mentioned_registrations
         if registration.casefold() not in assigned_registrations
     }
+
     if unexpected_registrations:
-        raise OpenAIConopsError(
-            "The generated CONOPS substituted an aircraft FAA registration "
-            "that is not assigned to this operation: "
+        raise _unchanged_error(
+            "The generated CONOPS contains an aircraft FAA registration "
+            "that conflicts with the aircraft assigned to this operation: "
             + ", ".join(sorted(unexpected_registrations))
-            + ". No reviewed content was changed."
+            + "."
         )
 
-    month_names = (
-        "January|February|March|April|May|June|July|August|September|"
-        "October|November|December"
+    _validate_operation_dates_if_mentioned(
+        generated_text,
+        operation,
     )
-    for label, value in (
-        ("operation start date", operation.start_date),
-        ("operation end date", operation.end_date),
-    ):
-        if value is None:
-            continue
-        date_patterns = (
-            re.escape(value.isoformat()),
-            rf"\b(?:{month_names})\s+0?{value.day},\s+{value.year}\b",
-            rf"\b0?{value.month}/0?{value.day}/{value.year}\b",
-        )
-        if not any(
-            re.search(pattern, generated_text, re.IGNORECASE)
-            for pattern in date_patterns
-        ):
-            raise OpenAIConopsError(
-                f"The generated CONOPS changed or omitted the {label}. "
-                "No reviewed content was changed."
-            )
 
 
 def _validate_geometry_source_fidelity(
     package: GeneratedConopsPackage,
     operation,
 ) -> None:
-    generated_text = "\n".join(
-        [package.description_of_operations]
-        + [section.content for section in package.sections]
-    )
+    generated_text = _package_text(package)
     normalized = generated_text.casefold()
 
     number = r"\d+(?:\.\d+)?|\d+\s*/\s*\d+|\d+\s*-\s*\d+"
