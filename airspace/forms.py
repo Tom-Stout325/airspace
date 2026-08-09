@@ -509,6 +509,7 @@ class OperationAircraftForm(forms.ModelForm):
             "current_firmware_installed",
             "operation_specific_safety_notes",
         ]
+
         labels = {
             "drone": "Aircraft",
             "planned_payload": "Payload or Attached Equipment",
@@ -522,10 +523,12 @@ class OperationAircraftForm(forms.ModelForm):
                 "Aircraft-Specific Safety Notes"
             ),
         }
+
         help_texts = {
             "drone": (
-                "Select an active drone from your aircraft inventory. Add the "
-                "drone to your inventory first if it is not listed."
+                "Select an active aircraft from your inventory. "
+                "You may assign multiple aircraft to the same operation, "
+                "but each aircraft can only be assigned once."
             ),
             "planned_payload": (
                 "List any camera, sensor, lighting system, propeller guards, "
@@ -551,37 +554,114 @@ class OperationAircraftForm(forms.ModelForm):
             ),
             "operation_specific_safety_notes": (
                 "Enter only safety information unique to this aircraft's use "
-                "during this operation. Examples include added lighting, "
-                "propeller guards, payload handling, reduced operating limits, "
-                "special battery procedures, or environmental restrictions. "
-                "Leave blank when the saved drone safety profile fully applies."
+                "during this operation. Leave blank when the saved drone "
+                "safety profile fully applies."
             ),
         }
+
         widgets = {
             "operation_specific_safety_notes": forms.Textarea(
                 attrs={"rows": 4}
             ),
         }
 
-    def __init__(self, *args, user=None, **kwargs):
+    def __init__(
+        self,
+        *args,
+        user=None,
+        operation=None,
+        **kwargs,
+    ):
+        self.operation = operation
         super().__init__(*args, **kwargs)
 
-        self.fields["drone"].queryset = (
+        queryset = (
             Drone.objects.filter(
                 user=user,
                 status=Drone.Status.ACTIVE,
-            ).order_by("manufacturer", "model", "nickname")
+            )
+            .order_by(
+                "manufacturer",
+                "model",
+                "nickname",
+            )
             if user
             else Drone.objects.none()
         )
 
+        # When adding a new assignment, don't show drones already
+        # assigned to this operation.
+        if operation is not None:
+            assigned_drone_ids = (
+                operation.aircraft_assignments
+                .values_list("drone_id", flat=True)
+            )
+
+            if self.instance.pk:
+                assigned_drone_ids = assigned_drone_ids.exclude(
+                    pk=self.instance.pk
+                )
+
+            queryset = queryset.exclude(
+                pk__in=assigned_drone_ids
+            )
+
+            # When editing, the currently selected aircraft must
+            # remain available in the dropdown.
+            if self.instance.pk and self.instance.drone_id:
+                current = Drone.objects.filter(
+                    pk=self.instance.drone_id,
+                    user=user,
+                )
+                queryset = (
+                    queryset | current
+                ).distinct().order_by(
+                    "manufacturer",
+                    "model",
+                    "nickname",
+                )
+
+        self.fields["drone"].queryset = queryset
+
         for field in self.fields.values():
             if isinstance(field.widget, forms.CheckboxInput):
-                field.widget.attrs.setdefault("class", "form-check-input")
+                field.widget.attrs.setdefault(
+                    "class",
+                    "form-check-input",
+                )
             elif isinstance(field.widget, forms.Select):
-                field.widget.attrs.setdefault("class", "form-select")
+                field.widget.attrs.setdefault(
+                    "class",
+                    "form-select",
+                )
             else:
-                field.widget.attrs.setdefault("class", "form-control")
+                field.widget.attrs.setdefault(
+                    "class",
+                    "form-control",
+                )
+
+    def clean_drone(self):
+        drone = self.cleaned_data["drone"]
+
+        if self.operation is None:
+            return drone
+
+        duplicate = (
+            self.operation.aircraft_assignments
+            .filter(drone=drone)
+        )
+
+        if self.instance.pk:
+            duplicate = duplicate.exclude(
+                pk=self.instance.pk
+            )
+
+        if duplicate.exists():
+            raise forms.ValidationError(
+                "This aircraft is already assigned to the operation."
+            )
+
+        return drone
 
 
 class OperationApprovalForm(forms.ModelForm):

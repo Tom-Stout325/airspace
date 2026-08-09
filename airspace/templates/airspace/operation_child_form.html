@@ -47,6 +47,11 @@
       <div class="child-form-header">
         <h1 class="h3 mb-1">{{ page_title }}</h1>
         <p class="mb-0">{{ operation.operation_title }}</p>
+        {% if form_intro %}
+          <p class="mt-2 mb-0">
+            {{ form_intro }}
+          </p>
+        {% endif %}
       </div>
 
       <div class="card-body p-4">

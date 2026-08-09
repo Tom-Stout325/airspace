@@ -567,8 +567,16 @@ class OperationsPlanning(models.Model):
         except Exception:
             self.distance_to_airport_nm = None
 
-    def primary_aircraft_assignment(self):
-        return self.aircraft_assignments.select_related("drone").filter(is_primary=True).first() if self.pk else None
+    def first_aircraft_assignment(self):
+        if not self.pk:
+            return None
+
+        return (
+            self.aircraft_assignments
+            .select_related("drone")
+            .order_by("id")
+            .first()
+        )
 
     def __str__(self):
         return self.operation_title

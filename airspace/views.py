@@ -1440,31 +1440,110 @@ class OperationsPlanningDeleteView(LoginRequiredMixin, DeleteView):
 
 @login_required
 def operation_aircraft_add(request, operation_pk):
-    operation = get_object_or_404(OperationsPlanning, pk=operation_pk, user=request.user)
-    form = OperationAircraftForm(request.POST or None, user=request.user)
+    operation = get_object_or_404(
+        OperationsPlanning,
+        pk=operation_pk,
+        user=request.user,
+    )
+
+    form = OperationAircraftForm(
+        request.POST or None,
+        user=request.user,
+        operation=operation,
+    )
+
     if request.method == "POST" and form.is_valid():
         assignment = form.save(commit=False)
         assignment.operation = operation
         assignment.save()
+
         _invalidate_operation_conops(operation)
-        messages.success(request, "Aircraft added to operation.")
-        return redirect("airspace:operations_planning_detail", pk=operation.pk)
-    return render(request, "airspace/operation_child_form.html", {"form": form, "operation": operation, "page_title": "Add aircraft"})
+
+        aircraft_count = (
+            operation.aircraft_assignments.count()
+        )
+
+        messages.success(
+            request,
+            (
+                f"Aircraft added. This operation now has "
+                f"{aircraft_count} aircraft assigned."
+            ),
+        )
+
+        return redirect(
+            "airspace:operations_planning_detail",
+            pk=operation.pk,
+        )
+
+    return render(
+        request,
+        "airspace/operation_child_form.html",
+        {
+            "form": form,
+            "operation": operation,
+            "page_title": "Add aircraft",
+            "form_intro": (
+                "Assign another aircraft to this operation. "
+                "Each assigned aircraft will be included in the "
+                "planning worksheet and generated CONOPS."
+            ),
+        },
+    )
 
 
 @login_required
-def operation_aircraft_edit(request, operation_pk, pk):
-    operation = get_object_or_404(OperationsPlanning, pk=operation_pk, user=request.user)
-    assignment = get_object_or_404(OperationAircraft, pk=pk, operation=operation)
-    form = OperationAircraftForm(request.POST or None, instance=assignment, user=request.user)
+def operation_aircraft_edit(
+    request,
+    operation_pk,
+    pk,
+):
+    operation = get_object_or_404(
+        OperationsPlanning,
+        pk=operation_pk,
+        user=request.user,
+    )
+
+    assignment = get_object_or_404(
+        OperationAircraft,
+        pk=pk,
+        operation=operation,
+    )
+
+    form = OperationAircraftForm(
+        request.POST or None,
+        instance=assignment,
+        user=request.user,
+        operation=operation,
+    )
+
     if request.method == "POST" and form.is_valid():
         assignment_changed = form.has_changed()
+
         form.save()
+
         if assignment_changed:
             _invalidate_operation_conops(operation)
-        messages.success(request, "Aircraft assignment updated.")
-        return redirect("airspace:operations_planning_detail", pk=operation.pk)
-    return render(request, "airspace/operation_child_form.html", {"form": form, "operation": operation, "page_title": "Edit aircraft"})
+
+        messages.success(
+            request,
+            "Aircraft assignment updated.",
+        )
+
+        return redirect(
+            "airspace:operations_planning_detail",
+            pk=operation.pk,
+        )
+
+    return render(
+        request,
+        "airspace/operation_child_form.html",
+        {
+            "form": form,
+            "operation": operation,
+            "page_title": "Edit aircraft",
+        },
+    )
 
 
 @login_required
